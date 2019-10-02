@@ -25,12 +25,12 @@ Programming Language :: Python :: 3.3
 Programming Language :: Python :: 3.4
 Topic :: Scientific/Engineering :: Bio-Informatics
 '''
-NAME                = 'IBEIS Deepsense Plugin'
+NAME                = 'IBEIS finFindR Plugin'
 MAINTAINER          = 'Wildbook Org. | IBEIS IA'
 MAINTAINER_EMAIL    = 'info@wildme.org'
-DESCRIPTION         = 'An IBEIS plugin to add the DeepSense humpback ID algorithm.'
+DESCRIPTION         = 'An IBEIS plugin to add the finFindR dolphin ID algorithm.'
 LONG_DESCRIPTION    = DESCRIPTION
-KEYWORDS            = ['ibeis', 'plugin', 'deepsense', 'wildbook', 'ia']
+KEYWORDS            = ['ibeis', 'plugin', 'finFindR', 'wildbook', 'ia']
 URL                 = 'https://github.com/WildbookOrg/'
 DOWNLOAD_URL        = ''
 LICENSE             = 'Apache'
