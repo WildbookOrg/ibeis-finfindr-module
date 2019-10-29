@@ -1,47 +1,141 @@
 from __future__ import absolute_import, division, print_function
 from os.path import abspath, exists, join, dirname, split
 import ibeis
-from ibeis.control import controller_inject
+from ibeis.control import controller_inject, docker_control
 from ibeis.constants import ANNOTATION_TABLE
 from ibeis.web.apis_engine import ensure_uuid_list
+import numpy as np
 import utool as ut
 import dtool as dt
 import vtool as vt
- import requests
+import requests
 from PIL import Image, ImageDraw
 
 
-#TODO: change this to none and genericize ibeis_plugin_finfindr_ensure_backend
-BACKEND_URL = 'localhost:8004'
+BACKEND_URL = None
 DIM_SIZE = 2000
-
-# just some testing stuff
-annot_uuid = 'e6b76954-25d1-4258-9489-7f13a74bd0f8'
 
 
 (print, rrr, profile) = ut.inject2(__name__)
-
 _, register_ibs_method = controller_inject.make_ibs_register_decorator(__name__)
 register_api = controller_inject.get_ibeis_flask_api(__name__)
 register_preproc_annot = controller_inject.register_preprocs['annot']
 
-#TODO: this
-# def _ibeis_plugin_finfindr_check_container(url):
-#     return True
+
+# TODO: abstract this out to a func that takes endpoints as an arg and lives in the docker controller
+def _ibeis_plugin_finfindr_check_container(url):
+    endpoints = {
+        'ocpu/library/finFindR/R/hashFromImage/json' : ['POST'],
+        'ocpu/library/finFindR/R/distanceToRefParallel/json' : ['POST'],
+    }
+    flag_list = []
+    endpoint_list = list(endpoints.keys())
+    for endpoint in endpoint_list:
+        print('Checking endpoint %r against url %r' % (endpoint, url, ))
+        flag = False
+        required_methods = set(endpoints[endpoint])
+        supported_methods = None
+        url_ = 'http://%s/%s' % (url, endpoint, )
+
+        try:
+            # http options returns the comma-sep methods supported at the url and endpoint, e.g. POST
+            response = requests.options(url_, timeout=1)
+        except:
+            response = None
+
+        if response is not None and response.status_code:
+            headers = response.headers
+            # unpack the return from options
+            # TODO: generalize this key / iterate across options
+            allow = headers.get('Access-Control-Allow-Methods', '')
+            # split up the comma-seperated list (and uppercase)
+            supported_methods_ = [method.strip().upper() for method in allow.split(',')]
+            supported_methods = set(supported_methods_)
+            # from our set of required methods, remove each method that is in fact supported
+            # assert the result is empty
+            if len(required_methods - supported_methods) == 0:
+                flag = True
+        if not flag:
+            args = (endpoint, )
+            print('[ibeis_deepsense - FAILED CONTAINER ENSURE CHECK] Endpoint %r failed the check' % args)
+            print('\tRequired Methods:  %r' % (required_methods, ))
+            print('\tSupported Methods: %r' % (supported_methods, ))
+        print('\tFlag: %r' % (flag, ))
+        flag_list.append(flag)
+    supported = np.all(flag_list)
+    return supported
 
 
-# docker_control.docker_register_config(None, 'finfindr', 'haimeh/finfindr:0.1.7', run_args={'_internal_port': 8004, '_external_suggested_port': 8004}, container_check_func=_ibeis_plugin_finfindr_check_container)
+docker_control.docker_register_config(None, 'flukebook_finfindr', 'wildme.azurecr.io/ibeis/finfindr:0.1.7', run_args={'_internal_port': 8004, '_external_suggested_port': 8004}, container_check_func=_ibeis_plugin_finfindr_check_container)
+
+
+@register_ibs_method
+def finfindr_ensure_backend(ibs, container_name='flukebook_finfindr'):
+    # below code doesn't work bc of ibeis-scope issue
+    global BACKEND_URL
+    if BACKEND_URL is None:
+        BACKEND_URLS = ibs.docker_ensure(container_name)
+        if len(BACKEND_URLS) == 0:
+            raise RuntimeError('Could not ensure container')
+        elif len(BACKEND_URLS) == 1:
+            BACKEND_URL = BACKEND_URLS[0]
+        else:
+            BACKEND_URL = BACKEND_URLS[0]
+            args = (BACKEND_URLS, BACKEND_URL, )
+            print('[WARNING] Multiple BACKEND_URLS:\n\tFound: %r\n\tUsing: %r' % args)
+    return BACKEND_URL
 
 
 @register_ibs_method
 def ibeis_plugin_finfindr_identify(ibs, qaid_list, daid_list,  use_depc=True, config={}, **kwargs):
+    r"""
+    Matches qaid_list against daid_list using Finfindr
 
-    q_hash_dict = ibs.finfindr_aid_hash_dict(qaid_list)
-    d_hash_dict = ibs.finfindr_aid_hash_dict(daid_list)
+    CommandLine:
+        python -m ibeis_finfindr._plugin --test-ibeis_plugin_finfindr_identify
+        python -m ibeis_finfindr._plugin --test-ibeis_plugin_finfindr_identify:0
+
+    Example0:
+        >>> # ENABLE_DOCTEST
+        >>> import utool as ut
+        >>> import ibeis_finfindr
+        >>> from ibeis_finfindr._plugin import FinfindrRequest
+        >>> import ibeis
+        >>> from ibeis.init import sysres
+        >>> # The curvrank testdb also uses dolphin dorsals
+        >>> dbdir = sysres.ensure_testdb_curvrank()
+        >>> ibs = ibeis.opendb(dbdir=dbdir)
+        >>> depc = ibs.depc_annot
+        >>> qaid = [1]
+        >>> daid_list = [2, 3, 4, 5]
+        >>> response = ibs.ibeis_plugin_finfindr_identify(qaid, daid_list)
+        >>> assert response.status_code == 201
+        >>> result = response.text
+        {
+          "distances": [
+            {
+              "V1": 217.5667,
+              "V2": 532.0134,
+              "V3": 651.7316,
+              "V4": 725.5806
+            }
+          ],
+          "sortingIndex": [
+            {
+              "V1": 1,
+              "V2": 2,
+              "V3": 4,
+              "V4": 3
+            }
+          ]
+        }
+    """
+    q_feature_dict = ibs.finfindr_aid_feature_dict(qaid_list)
+    d_feature_dict = ibs.finfindr_aid_feature_dict(daid_list)
 
     finfindr_arg_dict = {}
-    finfindr_arg_dict['queryHashData'] = q_hash_dict
-    finfindr_arg_dict['referenceHashData'] = d_hash_dict
+    finfindr_arg_dict['queryHashData'] = q_feature_dict
+    finfindr_arg_dict['referenceHashData'] = d_feature_dict
 
     url = ibs.finfindr_ensure_backend(**kwargs)
     url = 'http://%s/ocpu/library/finFindR/R/distanceToRefParallel/json' % (url)
@@ -52,9 +146,31 @@ def ibeis_plugin_finfindr_identify(ibs, qaid_list, daid_list,  use_depc=True, co
 
 # this method takes an aid_list and returns the arguments finFindR needs to do matching for those aid[p]
 @register_ibs_method
-def finfindr_aid_hash_dict(ibs, aid_list):
+def finfindr_aid_feature_dict(ibs, aid_list):
+    r"""
+    Constructs the {aid0: feature0, aid1: feature1,...} dict that the finFindR api
+    takes as input for its distance func
 
-    annot_hash_data = ibs.depc_annot.get('FinfindrHash', aid_list, 'response')
+    CommandLine:
+        python -m ibeis_finfindr._plugin --test-finfindr_aid_feature_dict
+        python -m ibeis_finfindr._plugin --test-finfindr_aid_feature_dict:0
+
+    Example0:
+        >>> # ENABLE_DOCTEST
+        >>> import utool as ut
+        >>> import ibeis_finfindr
+        >>> from ibeis_finfindr._plugin import FinfindrRequest
+        >>> import ibeis
+        >>> from ibeis.init import sysres
+        >>> # The curvrank testdb also uses dolphin dorsals
+        >>> dbdir = sysres.ensure_testdb_curvrank()
+        >>> ibs = ibeis.opendb(dbdir=dbdir)
+        >>> depc = ibs.depc_annot
+        >>> aid_list = [1, 2]
+        >>> result = ibs.finfindr_aid_feature_dict(aid_list)
+        {1: [31.7485, -145.0079, 152.3881, -20.2424, -112.6928, -92.4987, -166.5634, 12.4394, 15.0508, -146.4167, 97.4581, -146.8563, 89.4078, 213.0233, 43.8438, -58.0497, -89.5602, 198.5325, 38.7556, 38.5446, -173.2831, 293.7115, -204.0254, -92.9775, -157.026, 64.4671, 11.6679, -200.2824, -225.0971, -75.7923, 268.0069, -72.0642], 2: [-12.9609, -141.8752, 146.1252, -10.9072, -74.338, -81.2214, -212.8647, -55.3229, -7.7403, -192.7125, 27.3991, -113.9109, 96.7002, 185.7276, 73.1729, -70.496, -100.3558, 151.6967, -2.8725, 101.6979, -257.0346, 296.2685, -228.557, -40.953, -137.485, 46.1819, 8.2551, -251.8766, -224.5837, -18.7147, 239.0382, -48.6348]}
+    """
+    annot_hash_data = ibs.depc_annot.get('FinfindrFeature', aid_list, 'response')
     aid_hash_dict = {}
     for aid, hash_data in zip(aid_list, annot_hash_data):
         # hash_result comes from finFindR in this format
@@ -64,35 +180,8 @@ def finfindr_aid_hash_dict(ibs, aid_list):
     return aid_hash_dict
 
 
-#TODO: test this when the BACKEND_URL init above is None (as opposed ot the literal val)
 @register_ibs_method
-def finfindr_ensure_backend(ibs, container_name='finfindr'):
-    return 'localhost:8004'
-    # # below code doesn't work bc of ibeis-scope issue
-    # global BACKEND_URL
-    # if BACKEND_URL is None:
-    #     BACKEND_URLS = ibs.docker_ensure(container_name)
-    #     if len(BACKEND_URLS) == 0:
-    #         raise RuntimeError('Could not ensure container')
-    #     elif len(BACKEND_URLS) == 1:
-    #         BACKEND_URL = BACKEND_URLS[0]
-    #     else:
-    #         BACKEND_URL = BACKEND_URLS[0]
-    #         args = (BACKEND_URLS, BACKEND_URL, )
-    #         print('[WARNING] Multiple BACKEND_URLS:\n\tFound: %r\n\tUsing: %r' % args)
-    # return BACKEND_URL
-
-
-#curl -v http://localhost:8004/ocpu/library/finFindR/R/hashFromImage/json -F "imageobj=@C:/Users/jathompson/Documents/dolphinTestingdb/jensImgs/test2.jpg"
-@register_ibs_method
-def finfindr_hash_aid(ibs, aid, use_depc=False, **kwargs):
-
-    json_result = ibs.finfindr_hash_from_image_aid(aid, **kwargs)
-    return json_result['hash'][0]
-
-
-@register_ibs_method
-def finfindr_hash_from_image_aid(ibs, aid, use_depc=False, **kwargs):
+def finfindr_feature_extract_aid(ibs, aid, **kwargs):
 
     url = ibs.finfindr_ensure_backend(**kwargs)
     url = 'http://%s/ocpu/library/finFindR/R/hashFromImage/json' % (url)
@@ -108,38 +197,145 @@ def finfindr_hash_from_image_aid(ibs, aid, use_depc=False, **kwargs):
     response = requests.post(url, files=post_file, timeout=120)
     image_file.close()
 
-    # TODO throw error if any code other than 201
-
     import json
     json_result = json.loads(response.content)
-
-    # VISUALIZATION: I believe json_result.coordinates is the extracted outline of the fin
-
     return json_result
 
 
-class FinfindrHashConfig(dt.Config):  # NOQA
+@register_ibs_method
+@register_api('/api/plugin/finfindr/feature/', methods=['GET'])
+def finfindr_feature_extract(ibs, annot_uuid, use_depc=True, config={}, **kwargs):
+    r"""
+    Gets the finfindr feature representation of an annot
+
+    CommandLine:
+        python -m ibeis_finfindr._plugin --test-finfindr_feature_extract
+        python -m ibeis_finfindr._plugin --test-finfindr_feature_extract:0
+
+    Example0:
+        >>> # ENABLE_DOCTEST
+        >>> import utool as ut
+        >>> import ibeis_finfindr
+        >>> import ibeis
+        >>> from ibeis.init import sysres
+        >>> # The curvrank testdb also uses dolphin dorsals
+        >>> dbdir = sysres.ensure_testdb_curvrank()
+        >>> ibs = ibeis.opendb(dbdir=dbdir)
+        >>> aid_list = ibs.get_image_aids(1)
+        >>> annot_uuid = ibs.get_annot_uuids(aid_list)[0]
+        >>> feature = ibs.finfindr_feature_extract(annot_uuid, use_depc=False)
+        >>> feature_depc = ibs.finfindr_feature_extract(annot_uuid)
+        >>> assert feature == feature_depc
+        >>> result = feature
+        {'hash': [[31.7485, -145.0079, 152.3881, -20.2424, -112.6928, -92.4987, -166.5634, 12.4394, 15.0508, -146.4167, 97.4581, -146.8563, 89.4078, 213.0233, 43.8438, -58.0497, -89.5602, 198.5325, 38.7556, 38.5446, -173.2831, 293.7115, -204.0254, -92.9775, -157.026, 64.4671, 11.6679, -200.2824, -225.0971, -75.7923, 268.0069, -72.0642]], 'coordinates': [[243, 93], [242, 93], [242, 93], [242, 94], [241, 94], [241, 94], [241, 94], [240, 94], [240, 94], [240, 94], [239, 94], [239, 94], [239, 94], [239, 95], [238, 95], [238, 95], [238, 95], [237, 95], [237, 95], [237, 95], [236, 95], [236, 96], [236, 96], [235, 96], [235, 96], [235, 96], [234, 96], [234, 96], [234, 97], [233, 97], [233, 97], [233, 97], [233, 97], [232, 98], [232, 98], [232, 98], [231, 98], [231, 98], [231, 98], [230, 98], [230, 99], [230, 99], [229, 99], [229, 99], [229, 100], [228, 100], [228, 100], [228, 100], [228, 101], [227, 101], [227, 101], [227, 102], [226, 102], [226, 102], [226, 102], [225, 103], [225, 103], [225, 103], [225, 103], [225, 104], [224, 104], [224, 104], [224, 105], [224, 105], [223, 105], [223, 106], [223, 106], [223, 106], [223, 107], [223, 107], [223, 107], [222, 108], [222, 108], [222, 108], [222, 108], [222, 109], [222, 109], [222, 109], [222, 110], [221, 110], [221, 110], [221, 111], [221, 111], [221, 111], [221, 112], [221, 112], [221, 112], [221, 113], [221, 113], [221, 113], [222, 113], [222, 114], [222, 114], [222, 114], [222, 115], [222, 115], [222, 115], [222, 116], [222, 116], [223, 116], [223, 117], [223, 117], [223, 117], [223, 118], [223, 118], [223, 118], [223, 119], [223, 119], [223, 119], [223, 119], [224, 120], [224, 120], [224, 120], [224, 121], [224, 121], [224, 121], [224, 122], [224, 122], [224, 122], [225, 123], [225, 123], [225, 123], [225, 124], [225, 124], [225, 124], [225, 124], [225, 125], [226, 125], [226, 125], [226, 126], [226, 126], [226, 126], [226, 127], [226, 127], [227, 127], [227, 128], [227, 128], [227, 128], [227, 129], [227, 129], [227, 129], [228, 129], [228, 130], [228, 130], [228, 130], [228, 131], [228, 131], [228, 131], [228, 132], [228, 132], [229, 132], [229, 133], [229, 133], [229, 133], [229, 134], [229, 134], [229, 134], [230, 134], [230, 135], [230, 135], [230, 135], [230, 136], [230, 136], [230, 136], [231, 137], [231, 137], [231, 137], [231, 138], [231, 138], [231, 138], [231, 139], [231, 139], [232, 139], [232, 140], [232, 140], [232, 140], [232, 140], [232, 141], [232, 141], [232, 141], [232, 142], [233, 142], [233, 142], [233, 143], [233, 143], [233, 143], [233, 144], [233, 144], [233, 144], [233, 145], [233, 145], [234, 145], [234, 145], [234, 146], [234, 146], [234, 146], [234, 147], [234, 147], [234, 147], [234, 148], [235, 148], [235, 148], [235, 149], [235, 149], [235, 149], [235, 150], [235, 150], [235, 150], [235, 150], [235, 151], [236, 151], [236, 151], [236, 152], [236, 152], [236, 152], [236, 153], [236, 153], [236, 153], [236, 154], [237, 154], [237, 154], [237, 155], [237, 155], [237, 155], [237, 155], [237, 156], [237, 156], [237, 156], [238, 157], [238, 157], [238, 157], [238, 158], [238, 158], [238, 158], [238, 159], [238, 159], [238, 159], [238, 160], [238, 160], [238, 160], [238, 160], [239, 161], [239, 161], [239, 161], [239, 162], [239, 162], [239, 162], [239, 163], [239, 163], [239, 163], [239, 164], [239, 164], [239, 164], [239, 165], [239, 165], [239, 165], [240, 166], [240, 166], [240, 166], [240, 166], [240, 167], [240, 167], [240, 167], [240, 168], [240, 168], [240, 168], [240, 169], [240, 169], [241, 169], [241, 170], [241, 170], [241, 170], [241, 171], [241, 171], [241, 171], [241, 171], [241, 172], [241, 172], [241, 172], [241, 173], [242, 173], [242, 173], [242, 174], [242, 174], [242, 174], [242, 175], [242, 175], [242, 175], [242, 176], [242, 176], [242, 176], [242, 176], [242, 177], [242, 177], [242, 177], [242, 178], [242, 178], [242, 178], [242, 179], [242, 179], [242, 179], [242, 180], [242, 180], [242, 180], [242, 181], [242, 181], [242, 181], [242, 181], [243, 182], [243, 182], [243, 182], [243, 183], [243, 183], [243, 183], [243, 184], [243, 184], [243, 184], [243, 185], [243, 185], [243, 185], [243, 186], [243, 186], [243, 186], [243, 187], [244, 187], [244, 187], [244, 187], [244, 188], [244, 188], [244, 188], [244, 189], [244, 189], [244, 189], [244, 190], [244, 190], [244, 190], [244, 191], [244, 191], [244, 191], [244, 192], [244, 192], [244, 192], [244, 192], [244, 193], [244, 193], [244, 193], [244, 194], [244, 194], [244, 194], [244, 195], [244, 195], [244, 195], [244, 196], [244, 196], [244, 196], [244, 197], [244, 197], [244, 197], [245, 197], [245, 198], [245, 198], [245, 198], [245, 199], [245, 199], [245, 199], [245, 200], [245, 200], [245, 200], [245, 201], [245, 201], [245, 201], [245, 202], [245, 202], [245, 202], [245, 202], [245, 203], [245, 203], [245, 203], [245, 204], [245, 204], [245, 204], [245, 205], [245, 205], [245, 205], [245, 206], [245, 206], [245, 206], [245, 207], [245, 207], [245, 207], [245, 207], [245, 208], [245, 208], [245, 208], [245, 209], [245, 209], [245, 209], [245, 210], [245, 210], [245, 210], [245, 211], [245, 211], [245, 211], [245, 212], [245, 212], [245, 212], [245, 213], [245, 213], [245, 213], [245, 213], [244, 214], [244, 214], [244, 214], [244, 215], [244, 215], [244, 215], [244, 216], [244, 216], [244, 216], [244, 217], [244, 217], [244, 217], [244, 218], [244, 218], [244, 218], [244, 218], [244, 219], [244, 219], [244, 219], [244, 220], [244, 220], [244, 220], [244, 221], [244, 221], [244, 221], [244, 222], [244, 222], [244, 222], [244, 223], [244, 223], [244, 223], [244, 223], [244, 224], [244, 224], [244, 224], [244, 225], [244, 225], [244, 225], [244, 226], [244, 226], [244, 226], [244, 227], [244, 227], [244, 227], [244, 228], [244, 228], [244, 228], [244, 228], [244, 229], [244, 229], [244, 229], [244, 230], [244, 230], [244, 230], [244, 231], [244, 231], [244, 231], [243, 232], [243, 232], [243, 232], [243, 233], [243, 233], [243, 233], [243, 234], [243, 234], [243, 234], [243, 234], [243, 235], [243, 235], [243, 235], [243, 236], [243, 236], [243, 236], [243, 237], [243, 237], [243, 237], [243, 238], [243, 238], [243, 238], [243, 239], [243, 239], [243, 239], [243, 239], [243, 240], [242, 240], [242, 240], [242, 241], [242, 241], [242, 241], [242, 242], [242, 242], [242, 242], [242, 243], [242, 243], [242, 243], [242, 244], [242, 244], [242, 244], [242, 244], [242, 245], [242, 245], [241, 245], [241, 246], [241, 246], [241, 246], [241, 247], [241, 247], [241, 247], [241, 248], [241, 248], [241, 248], [241, 249], [241, 249], [241, 249], [241, 249], [241, 250], [241, 250], [241, 250], [241, 251], [241, 251], [241, 251], [241, 252], [241, 252], [241, 252], [241, 253], [241, 253], [240, 253], [240, 254], [240, 254], [240, 254], [239, 254], [239, 255], [239, 255], [239, 255], [239, 256], [239, 256], [238, 256], [238, 257], [238, 257], [238, 257], [237, 258], [237, 258], [237, 258], [236, 259], [236, 259], [236, 259], [236, 260], [235, 260], [235, 260], [235, 260], [235, 261], [234, 261], [234, 261], [234, 262], [234, 262], [234, 262], [234, 263], [234, 263], [234, 263], [234, 264], [235, 264], [235, 264], [235, 265], [236, 265], [236, 265], [236, 265], [237, 265], [237, 265], [237, 266], [238, 266], [238, 266], [238, 266], [239, 266], [239, 266], [239, 267], [239, 267], [240, 267], [240, 267], [240, 268], [241, 268], [241, 268], [241, 269], [242, 269], [242, 269], [242, 270], [243, 270], [243, 270], [243, 270], [244, 271], [244, 271], [244, 271], [244, 272], [245, 272], [245, 272], [245, 273], [246, 273], [246, 273], [246, 273], [247, 274], [247, 274], [247, 274], [247, 275], [247, 275], [247, 275], [247, 275], [247, 276], [247, 276], [247, 276], [247, 277], [246, 277], [246, 277], [246, 278], [246, 278], [245, 278], [245, 279], [245, 279], [245, 279], [246, 280], [246, 280], [246, 280], [246, 281], [246, 281], [247, 281], [247, 281], [247, 282], [247, 282], [247, 282], [247, 283], [247, 283], [246, 283], [246, 284], [246, 284], [245, 284], [245, 283], [245, 283], [244, 283], [244, 282], [244, 282], [244, 283], [243, 283], [243, 283], [243, 284], [242, 284], [242, 284], [242, 285], [241, 285], [241, 285], [241, 285], [240, 285], [240, 285], [240, 286], [239, 286], [239, 286], [239, 285], [239, 285], [238, 285], [238, 285], [238, 285], [237, 285], [237, 285], [237, 285], [236, 285], [236, 285], [236, 285], [235, 285], [235, 284], [235, 284], [234, 284], [234, 283], [234, 283], [233, 284], [233, 283], [233, 283], [233, 283], [232, 283], [232, 283], [232, 282], [231, 282], [231, 282], [231, 282], [230, 281], [230, 281], [230, 281], [229, 282], [229, 282], [229, 282], [228, 282], [228, 283], [228, 283], [228, 283], [227, 283], [227, 284], [227, 284], [226, 284], [226, 285], [226, 285], [225, 285], [225, 286], [225, 286], [224, 286], [224, 286], [224, 287], [223, 287], [223, 287], [223, 288], [223, 288], [223, 288], [223, 289], [223, 289], [223, 289], [223, 290], [223, 290], [224, 290], [224, 291], [224, 291], [225, 291], [225, 291], [225, 292], [226, 292], [226, 292], [226, 293], [226, 293], [226, 293], [226, 294], [226, 294], [226, 294], [226, 295], [225, 295], [225, 295], [225, 296], [224, 296], [224, 296], [224, 296], [223, 297], [223, 297], [223, 297], [223, 298], [222, 298], [222, 298], [222, 298], [221, 299], [221, 299], [221, 299], [220, 299], [220, 300], [220, 300], [219, 300], [219, 301], [219, 301], [218, 301], [218, 301], [218, 301], [218, 301], [217, 302], [217, 302], [217, 302], [216, 302], [216, 302], [216, 303], [215, 303], [215, 303], [215, 303], [214, 304], [214, 304], [214, 304], [213, 304], [213, 305], [213, 305], [213, 305], [212, 305], [212, 306], [212, 306], [211, 306], [211, 306], [211, 307], [210, 307], [210, 307], [210, 307], [209, 307], [209, 307], [209, 308], [208, 308], [208, 308], [208, 308], [207, 309]]}
+
+    """
+    aid = ibs.get_annot_aids_from_uuid([annot_uuid])[0]
+    if use_depc:
+        response_list = ibs.depc_annot.get('FinfindrFeature', [aid], 'response', config=config)
+        response = response_list[0]
+    else:
+        response = ibs.finfindr_feature_extract_aid(aid)
+    return response
+
+
+class FinfindrDistanceConfig(dt.Config):  # NOQA
     _param_info_list = []
 
 
 @register_preproc_annot(
-    tablename='FinfindrHash', parents=[ANNOTATION_TABLE],
-    colnames=['response'], coltypes=[dict],
-    configclass=FinfindrHashConfig,
+    tablename='FinfindrDistance', parents=[ANNOTATION_TABLE, ANNOTATION_TABLE],
+    colnames=['distance'], coltypes=[float],
+    configclass=FinfindrDistanceConfig,
     fname='finfindr',
     chunksize=128)
-def finfindr_hash_from_image_aid_depc(depc, aid_list, config):
+def finfindr_distance_depc(depc, qaid_list, daid_list, config):
+    # qaid and aid lists are parallel
+    # The doctest for ibeis_plugin_deepsense_identify_deepsense_ids also covers this func
+    ibs = depc.controller
+
+    qaids = list(set(qaid_list))
+    daids = list(set(daid_list))
+
+    response = ibs.ibeis_plugin_finfindr_identify(qaids, daids)
+    sorted_scores = ibs.finfindr_ibeis_score_list_from_finfindr_result(daids, response)
+
+    for score in sorted_scores:
+        yield (score, )
+
+
+# assuming there was only one qaid, we don't need it for this step
+@register_ibs_method
+def finfindr_ibeis_score_list_from_finfindr_result(ibs, daid_list, response, query_no=0):
+    r"""
+    finFindR returns match results in a strange format. This func converts that
+    to ibeis's familiar score list.
+
+    Args:
+        daid_list: list of daids originally sent to finFindR
+        response: the response from finFindR; output of ibeis_plugin_finfindr_identify
+
+    CommandLine:
+        python -m ibeis_finfindr._plugin --test-finfindr_ibeis_score_list_from_finfindr_result
+        python -m ibeis_finfindr._plugin --test-finfindr_ibeis_score_list_from_finfindr_result:0
+
+    Example0:
+        >>> # ENABLE_DOCTEST
+        >>> import utool as ut
+        >>> import ibeis_finfindr
+        >>> import ibeis
+        >>> from ibeis.init import sysres
+        >>> # The curvrank testdb also uses dolphin dorsals
+        >>> dbdir = sysres.ensure_testdb_curvrank()
+        >>> ibs = ibeis.opendb(dbdir=dbdir)
+        >>> depc = ibs.depc_annot
+        >>> qaid = [1]
+        >>> daid_list = [2, 3, 4, 5]
+        >>> id_response = ibs.ibeis_plugin_finfindr_identify(qaid, daid_list)
+        >>> result = ibs.finfindr_ibeis_score_list_from_finfindr_result(daid_list, id_response)
+        [217.5667, 532.0134, 725.5806, 651.7316]
+    """
+    n_scores = len(daid_list)
+    sorted_score_list = [None] * n_scores
+
+    import ast
+    score_dict = ast.literal_eval(response.text)
+
+    for i in range(n_scores):
+        # +1 and -1 are here bc finFindR / R arrays start at 1
+        jaime_key    = "V" + str(i + 1)
+        score_index  = score_dict['sortingIndex'][query_no][jaime_key] - 1
+        ith_distance = score_dict[   'distances'][query_no][jaime_key]
+        sorted_score_list[score_index] = ith_distance
+
+    assert None not in sorted_score_list
+
+    return sorted_score_list
+
+
+
+class FinfindrFeatureConfig(dt.Config):  # NOQA
+    _param_info_list = []
+
+
+@register_preproc_annot(
+    tablename='FinfindrFeature', parents=[ANNOTATION_TABLE],
+    colnames=['response'], coltypes=[dict],
+    configclass=FinfindrFeatureConfig,
+    fname='finfindr',
+    chunksize=128)
+def finfindr_feature_extract_aid_depc(depc, aid_list, config):
     # The doctest for ibeis_plugin_deepsense_identify_deepsense_ids also covers this func
     ibs = depc.controller
     for aid in aid_list:
-        response = ibs.finfindr_hash_from_image_aid(aid)
+        response = ibs.finfindr_feature_extract_aid(aid)
         yield (response, )
 
 
 @register_ibs_method
 def finfindr_passport(ibs, aid, output=False, config={}, **kwargs):
 
-    edge_coords = ibs.depc_annot.get('FinfindrHash', [aid], 'response')[0]['coordinates']
+    edge_coords = ibs.depc_annot.get('FinfindrFeature', [aid], 'response')[0]['coordinates']
     image_path  = ibs.finfindr_annot_chip_fpath_from_aid(aid)
     pil_image   = Image.open(image_path)
 
@@ -147,6 +343,7 @@ def finfindr_passport(ibs, aid, output=False, config={}, **kwargs):
     draw = ImageDraw.Draw(pil_image)
     # convert edge_coords to the format draw.line is looking for
     edge_coord_tuples = [(coord[0], coord[1]) for coord in edge_coords]
+    #TODO: Add start and end dot to show directionality
     draw.line(xy=edge_coord_tuples, fill='yellow', width=3)
 
     if output:
@@ -206,11 +403,6 @@ def finfindr_aid_list_from_annot_uuid_list(ibs, annot_uuid_list):
     return aid_list
 
 
-# @register_ibs_method
-# def finfindr_aid_from_annot_uuid(ibs, annot_uuid):
-#     return ibs.finfindr_aid_list_from_annot_uuid_list([annot_uuid])[0]
-
-
 #TODO: does this work and is this the desired config for finfindr
 @register_ibs_method
 def finfindr_annot_chip_fpath(ibs, annot_uuid, **kwargs):
@@ -252,6 +444,51 @@ def finfindr_init_testdb(ibs):
     return gid_list, aid_list
 
 
+# this func is called reflexively and identical to get_match_results in deepsense and curvrank
+def get_match_results(depc, qaid_list, daid_list, score_list, config):
+    """ converts table results into format for ipython notebook """
+    #qaid_list, daid_list = request.get_parent_rowids()
+    #score_list = request.score_list
+    #config = request.config
+
+    unique_qaids, groupxs = ut.group_indices(qaid_list)
+    #grouped_qaids_list = ut.apply_grouping(qaid_list, groupxs)
+    grouped_daids = ut.apply_grouping(daid_list, groupxs)
+    grouped_scores = ut.apply_grouping(score_list, groupxs)
+
+    ibs = depc.controller
+    unique_qnids = ibs.get_annot_nids(unique_qaids)
+
+    # scores
+    _iter = zip(unique_qaids, unique_qnids, grouped_daids, grouped_scores)
+    for qaid, qnid, daids, scores in _iter:
+        dnids = ibs.get_annot_nids(daids)
+
+        # Remove distance to self
+        annot_scores = np.array(scores)
+        daid_list_ = np.array(daids)
+        dnid_list_ = np.array(dnids)
+
+        is_valid = (daid_list_ != qaid)
+        daid_list_ = daid_list_.compress(is_valid)
+        dnid_list_ = dnid_list_.compress(is_valid)
+        annot_scores = annot_scores.compress(is_valid)
+
+        # Hacked in version of creating an annot match object
+        match_result = ibeis.AnnotMatch()
+        match_result.qaid = qaid
+        match_result.qnid = qnid
+        match_result.daid_list = daid_list_
+        match_result.dnid_list = dnid_list_
+        match_result._update_daid_index()
+        match_result._update_unique_nid_index()
+
+        grouped_annot_scores = vt.apply_grouping(annot_scores, match_result.name_groupxs)
+        name_scores = np.array([np.sum(dists) for dists in grouped_annot_scores])
+        match_result.set_cannonical_name_score(annot_scores, name_scores)
+        yield match_result
+
+
 class FinfindrConfig(dt.Config):  # NOQA
     """
     CommandLine:
@@ -259,7 +496,7 @@ class FinfindrConfig(dt.Config):  # NOQA
 
     Example:
         >>> # ENABLE_DOCTEST
-        >>> from ibeis_deepsense._plugin import *  # NOQA
+        >>> from ibeis_finfindr._plugin import *  # NOQA
         >>> config = FinfindrConfig()
         >>> result = config.get_cfgstr()
         >>> print(result)
@@ -316,18 +553,62 @@ class FinfindrRequest(dt.base.VsOneSimilarityRequest):
     colnames=['score'], coltypes=[float],
     configclass=FinfindrConfig,
     requestclass=FinfindrRequest,
-    fname='deepsense',
+    fname='finfindr',
     rm_extern_on_delete=True,
     chunksize=None)
 def ibeis_plugin_finfindr(depc, qaid_list, daid_list, config):
+    r"""
+    Matches qaid_list against daid_list using Finfindr
+
+    CommandLine:
+        python -m ibeis_finfindr._plugin --exec-ibeis_plugin_finfindr
+        python -m ibeis_finfindr._plugin --exec-ibeis_plugin_finfindr:0
+
+    Example0:
+        >>> # ENABLE_DOCTEST
+        >>> import utool as ut
+        >>> import ibeis_finfindr
+        >>> from ibeis_finfindr._plugin import FinfindrRequest
+        >>> import ibeis
+        >>> from ibeis.init import sysres
+        >>> # The curvrank testdb also uses dolphin dorsals
+        >>> dbdir = sysres.ensure_testdb_curvrank()
+        >>> ibs = ibeis.opendb(dbdir=dbdir)
+        >>> depc = ibs.depc_annot
+        >>> daid_list = [2, 3, 4, 5]
+        >>> qaid = [1]
+        >>> request = FinfindrRequest.new(depc, qaid, daid_list)
+        >>> result = request.execute()
+        >>> am = result[0]
+        >>> unique_nids = am.unique_nids
+        >>> TODO: run this past JP. The following line seems logic-bugged? the name score per name is just the sum of its annot scores. What a crazy bias that introduces for highly-sighted individuals.
+        >>> name_score_list = am.name_score_list
+        >>> unique_name_text_list = ibs.get_name_texts(unique_nids)
+        >>> name_score_list_ = ['%0.04f' % (score, ) for score in am.name_score_list]
+        >>> name_score_dict = dict(zip(unique_name_text_list, name_score_list_))
+        >>> result = name_score_dict
+        {'F272': '0.8045', 'F274': '1.0715', 'F276': '0.5211'}
+
+    """
+    # this is going to load the distances from the distance cache and convert those to scores a la Flukematch
+
     ibs = depc.controller
+    distances = ibs.depc_annot.get('FinfindrDistance', (qaid_list, daid_list), 'distance')
+    for distance in distances:
+        # I'm still confused about these trailing commas. Are we casting this to a unary tuple?
+        yield (finfindr_distance_to_match_score(distance),)
 
-    qaids = list(set(qaid_list))
-    daids = list(set(daid_list))
 
-    # note that finfindr itself doesn't have this constraint; this is ibeis
-    assert len(qaids) == 1
+def finfindr_distance_to_match_score(distance, max_distance_scalar=1000.):
+    return np.exp(-distance / max_distance_scalar)
 
-    qaid = qaids[0]
-    annot_uuid = ibs.get_annot_uuids(qaid)
-    resp_json = ibs.ibeis_plugin_deepsense_identify(annot_uuid, use_depc=True, config=config)
+
+if __name__ == '__main__':
+    r"""
+    CommandLine:
+        python -m ibeis_finfindr._plugin --allexamples
+    """
+    import multiprocessing
+    multiprocessing.freeze_support()  # for win32
+    import utool as ut  # NOQA
+    ut.doctest_funcs()
