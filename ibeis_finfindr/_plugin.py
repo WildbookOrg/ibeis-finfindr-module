@@ -10,7 +10,6 @@ import dtool as dt
 import vtool as vt
 import requests
 from PIL import Image, ImageDraw
-import json
 
 
 # Section: Global vars
@@ -90,17 +89,18 @@ def finfindr_ensure_backend(ibs, container_name='flukebook_finfindr', clone=None
 
 
 def finfindr_feature_extract_aid_helper(url, fpath):
+    import requests
+    import json
+
     print('Getting finfindr hash from %s for file %s' % (url, fpath, ))
 
     url_ = 'http://%s/ocpu/library/finFindR/R/hashFromImage/json' % (url)
 
-    image_file = open(fpath, 'rb')
-    post_file  = {
-        'imageobj': image_file
-    }
-
-    response = requests.post(url_, files=post_file, timeout=120)
-    image_file.close()
+    with open(fpath, 'rb') as image_file:
+        post_file  = {
+            'imageobj': image_file,
+        }
+        response = requests.post(url_, files=post_file, timeout=120)
 
     try:
         json_result = json.loads(response.content)
@@ -125,7 +125,7 @@ def finfindr_feature_extract_aid(ibs, aid, **kwargs):
 @register_ibs_method
 def finfindr_feature_extract_aid_batch(ibs, aid_list, jobs=None, **kwargs):
 
-    MAXJOBS = 10
+    MAXJOBS = 4
 
     if jobs is None:
         jobs = ut.num_cpus()
@@ -169,7 +169,7 @@ def finfindr_feature_extract_aid_batch(ibs, aid_list, jobs=None, **kwargs):
         args_list,
         nTasks=len(args_list),
         nprocs=jobs,
-        ordered=True
+        ordered=True,
     )
 
     json_result_list = list(json_result_gen)
