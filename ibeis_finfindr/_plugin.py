@@ -10,6 +10,7 @@ import dtool as dt
 import vtool as vt
 import requests
 from PIL import Image, ImageDraw
+import json
 
 
 # Section: Global vars
@@ -72,11 +73,11 @@ docker_control.docker_register_config(None, 'flukebook_finfindr', 'wildme.azurec
 
 
 @register_ibs_method
-def finfindr_ensure_backend(ibs, container_name='flukebook_finfindr'):
+def finfindr_ensure_backend(ibs, container_name='flukebook_finfindr', clone=None):
     # below code doesn't work bc of ibeis-scope issue
     global BACKEND_URL
     if BACKEND_URL is None:
-        BACKEND_URLS = ibs.docker_ensure(container_name)
+        BACKEND_URLS = ibs.docker_ensure(container_name, clone=clone)
         if len(BACKEND_URLS) == 0:
             raise RuntimeError('Could not ensure container')
         elif len(BACKEND_URLS) == 1:
@@ -88,26 +89,85 @@ def finfindr_ensure_backend(ibs, container_name='flukebook_finfindr'):
     return BACKEND_URL
 
 
-@register_ibs_method
-def finfindr_feature_extract_aid(ibs, aid, **kwargs):
+def finfindr_feature_extract_aid_helper(url, fpath):
+    print('Getting finfindr hash from %s for file %s' % (url, fpath, ))
 
-    url = ibs.finfindr_ensure_backend(**kwargs)
-    url = 'http://%s/ocpu/library/finFindR/R/hashFromImage/json' % (url)
-
-    fpath = ibs.finfindr_annot_chip_fpath_from_aid(aid)
-    print('Getting finfindr hash from %s' % url)
+    url_ = 'http://%s/ocpu/library/finFindR/R/hashFromImage/json' % (url)
 
     image_file = open(fpath, 'rb')
     post_file  = {
         'imageobj': image_file
     }
 
-    response = requests.post(url, files=post_file, timeout=120)
+    response = requests.post(url_, files=post_file, timeout=120)
     image_file.close()
 
-    import json
-    json_result = json.loads(response.content)
+    try:
+        json_result = json.loads(response.content)
+    except json.JSONDecodeError:
+        print('------------------')
+        print('FINFINDR API ERROR:')
+        print(response.content.decode('ascii'))
+        print('------------------')
+        json_result = None
+
     return json_result
+
+
+@register_ibs_method
+def finfindr_feature_extract_aid(ibs, aid, **kwargs):
+    url = ibs.finfindr_ensure_backend(**kwargs)
+    fpath = ibs.finfindr_annot_chip_fpath_from_aid(aid)
+    json_result = finfindr_feature_extract_aid_helper(url, fpath)
+    return json_result
+
+
+@register_ibs_method
+def finfindr_feature_extract_aid_batch(ibs, aid_list, jobs=None, **kwargs):
+
+    MAXJOBS = 16
+
+    if jobs is None:
+        jobs = ut.num_cpus()
+
+    jobs = min(jobs, len(aid_list))
+    jobs = min(jobs, MAXJOBS)
+
+    url_clone_list = []
+    for job in range(jobs):
+        container_name = 'flukebook_finfindr'
+        url_clone = ibs.docker_ensure(container_name, clone=job)
+        assert len(url_clone) == 1
+        url_clone = url_clone[0]
+        url_clone_list.append(url_clone)
+
+    config = {
+        'ext': '.jpg',
+    }
+    fpath_list = ibs.get_annot_chip_fpath(aid_list, ensure=True, config2_=config)
+
+    url_list = []
+    index = 0
+    for fpath in fpath_list:
+        url = url_clone_list[index]
+        url_list.append(url)
+
+        index += 1
+        index %= len(url_clone_list)
+
+    args_list = list(zip(url_list, fpath_list, ))
+
+    json_result_gen = ut.generate2(
+        finfindr_feature_extract_aid_helper,
+        args_list,
+        nTasks=len(args_list),
+        nprocs=jobs,
+        ordered=True
+    )
+
+    json_result_list = list(json_result_gen)
+
+    return json_result_list
 
 
 class FinfindrFeatureConfig(dt.Config):  # NOQA
@@ -119,13 +179,20 @@ class FinfindrFeatureConfig(dt.Config):  # NOQA
     colnames=['response'], coltypes=[dict],
     configclass=FinfindrFeatureConfig,
     fname='finfindr',
-    chunksize=128)
+    # chunksize=128)
+    chunksize=1024)
 def finfindr_feature_extract_aid_depc(depc, aid_list, config):
     # The doctest for ibeis_plugin_deepsense_identify_deepsense_ids also covers this func
     ibs = depc.controller
-    for aid in aid_list:
-        response = ibs.finfindr_feature_extract_aid(aid)
-        yield (response, )
+    OLD = False
+    if OLD:
+        for aid in aid_list:
+            response = ibs.finfindr_feature_extract_aid(aid)
+            yield (response, )
+    else:
+        response_list = ibs.finfindr_feature_extract_aid_batch(aid_list)
+        for response in response_list:
+            yield (response, )
 
 
 @register_ibs_method
