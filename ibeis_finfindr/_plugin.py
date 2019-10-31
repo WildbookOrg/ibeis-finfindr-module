@@ -136,9 +136,16 @@ def finfindr_feature_extract_aid_batch(ibs, aid_list, jobs=None, **kwargs):
     url_clone_list = []
     for job in range(jobs):
         container_name = 'flukebook_finfindr'
-        url_clone = ibs.docker_ensure(container_name, clone=job)
-        assert len(url_clone) == 1
-        url_clone = url_clone[0]
+        urls_clone = ibs.docker_ensure(container_name, clone=job)
+
+        if len(urls_clone) == 0:
+            raise RuntimeError('Could not ensure container clone')
+        elif len(urls_clone) == 1:
+            url_clone = urls_clone[0]
+        else:
+            url_clone = urls_clone[0]
+            args = (urls_clone, url_clone, )
+            print('[WARNING] Multiple BACKEND_URLS:\n\tFound: %r\n\tUsing: %r' % args)
         url_clone_list.append(url_clone)
 
     config = {
