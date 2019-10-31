@@ -125,7 +125,7 @@ def finfindr_feature_extract_aid(ibs, aid, **kwargs):
 @register_ibs_method
 def finfindr_feature_extract_aid_batch(ibs, aid_list, jobs=None, **kwargs):
 
-    MAXJOBS = 16
+    MAXJOBS = 10
 
     if jobs is None:
         jobs = ut.num_cpus()
