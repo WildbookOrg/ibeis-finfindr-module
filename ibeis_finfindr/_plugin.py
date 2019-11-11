@@ -12,6 +12,13 @@ import requests
 from PIL import Image, ImageDraw
 
 
+'''
+Download the latest image required by this plugin:
+
+    docker pull wildme.azurecr.io/ibeis/finfindr:0.1.7
+
+'''
+
 # Section: Global vars
 BACKEND_URL = None
 DIM_SIZE = 2000
@@ -88,7 +95,7 @@ def finfindr_ensure_backend(ibs, container_name='flukebook_finfindr', clone=None
     return BACKEND_URL
 
 
-def finfindr_feature_extract_aid_helper(url, fpath):
+def finfindr_feature_extract_aid_helper(url, fpath, retry=3):
     import requests
     import json
 
@@ -110,6 +117,12 @@ def finfindr_feature_extract_aid_helper(url, fpath):
         print(response.content.decode('ascii'))
         print('------------------')
         json_result = None
+
+        # Attempt to try again...
+        if retry > 0:
+            print('Retrying this request again (retry = %d)' % (retry, ))
+            new_retry = retry - 1
+            json_result = finfindr_feature_extract_aid_helper(url, fpath, retry=new_retry)
 
     return json_result
 
@@ -186,17 +199,18 @@ class FinfindrFeatureConfig(dt.Config):  # NOQA
     colnames=['response'], coltypes=[dict],
     configclass=FinfindrFeatureConfig,
     fname='finfindr',
-    # chunksize=128)
-    chunksize=1024)
+    chunksize=128)
 def finfindr_feature_extract_aid_depc(depc, aid_list, config):
     # The doctest for ibeis_plugin_deepsense_identify_deepsense_ids also covers this func
     ibs = depc.controller
-    OLD = False
+    OLD = True
     if OLD:
+        # Compute the features one at a time
         for aid in aid_list:
             response = ibs.finfindr_feature_extract_aid(aid)
             yield (response, )
     else:
+        # Compute the features in small batches (for multi-container processing)
         response_list = ibs.finfindr_feature_extract_aid_batch(aid_list)
         for response in response_list:
             yield (response, )
@@ -240,7 +254,7 @@ def finfindr_feature_extract(ibs, annot_uuid, use_depc=True, config={}, **kwargs
 
 
 @register_ibs_method
-def ibeis_plugin_finfindr_identify(ibs, qaid_list, daid_list,  use_depc=True, config={}, **kwargs):
+def ibeis_plugin_finfindr_identify(ibs, qaid_list, daid_list, use_depc=True, config={}, **kwargs):
     r"""
     Matches qaid_list against daid_list using Finfindr
 
@@ -261,7 +275,7 @@ def ibeis_plugin_finfindr_identify(ibs, qaid_list, daid_list,  use_depc=True, co
         >>> depc = ibs.depc_annot
         >>> qaid = [1]
         >>> daid_list = [2, 3, 4, 5]
-        >>> response = ibs.ibeis_plugin_finfindr_identify(qaid, daid_list)
+        >>> qaid_list_clean, daid_list_clean, response = ibs.ibeis_plugin_finfindr_identify(qaid, daid_list)
         >>> assert response.status_code == 201
         >>> result = response.text
         {
@@ -283,23 +297,43 @@ def ibeis_plugin_finfindr_identify(ibs, qaid_list, daid_list,  use_depc=True, co
           ]
         }
     """
-    q_feature_dict = ibs.finfindr_aid_feature_dict(qaid_list)
-    d_feature_dict = ibs.finfindr_aid_feature_dict(daid_list)
+    q_feature_dict = ibs.finfindr_aid_feature_dict(qaid_list, skip_failures=True)
+    d_feature_dict = ibs.finfindr_aid_feature_dict(daid_list, skip_failures=True)
 
-    finfindr_arg_dict = {}
-    finfindr_arg_dict['queryHashData'] = q_feature_dict
-    finfindr_arg_dict['referenceHashData'] = d_feature_dict
+    qaid_list_clean = list(q_feature_dict.keys())
+    daid_list_clean = list(d_feature_dict.keys())
+    qaid_list_dirty = set(qaid_list) - set(qaid_list_clean)
+    daid_list_dirty = set(daid_list) - set(daid_list_clean)
 
-    url = ibs.finfindr_ensure_backend(**kwargs)
-    url = 'http://%s/ocpu/library/finFindR/R/distanceToRefParallel/json' % (url)
+    num_qaid_clean = len(qaid_list_clean)
+    num_daid_clean = len(daid_list_clean)
+    num_qaid_dirty = len(qaid_list_dirty)
+    num_daid_dirty = len(daid_list_dirty)
 
-    response = requests.post(url, json=finfindr_arg_dict)
-    return response
+    print('[finfindr] Retrieved features for %d qaids, %d daids' % (len(qaid_list), len(daid_list), ))
+    print('[finfindr] \tClean qaids: %d' % (num_qaid_clean, ))
+    print('[finfindr] \tClean daids: %d' % (num_daid_clean, ))
+    print('[finfindr] \tDirty qaids: %d' % (num_qaid_dirty, ))
+    print('[finfindr] \tDirty daids: %d' % (num_daid_dirty, ))
+
+    if 0 in [num_qaid_clean, num_daid_clean]:
+        response = None
+    else:
+        finfindr_arg_dict = {}
+        finfindr_arg_dict['queryHashData'] = q_feature_dict
+        finfindr_arg_dict['referenceHashData'] = d_feature_dict
+
+        url = ibs.finfindr_ensure_backend(**kwargs)
+        url = 'http://%s/ocpu/library/finFindR/R/distanceToRefParallel/json' % (url)
+
+        response = requests.post(url, json=finfindr_arg_dict)
+
+    return qaid_list_clean, daid_list_clean, response
 
 
 # this method takes an aid_list and returns the arguments finFindR needs to do matching for those aid[p]
 @register_ibs_method
-def finfindr_aid_feature_dict(ibs, aid_list):
+def finfindr_aid_feature_dict(ibs, aid_list, skip_failures=False):
     r"""
     Constructs the {aid0: feature0, aid1: feature1,...} dict that the finFindR api
     takes as input for its distance func
@@ -324,11 +358,21 @@ def finfindr_aid_feature_dict(ibs, aid_list):
         {1: [31.7485, -145.0079, 152.3881, -20.2424, -112.6928, -92.4987, -166.5634, 12.4394, 15.0508, -146.4167, 97.4581, -146.8563, 89.4078, 213.0233, 43.8438, -58.0497, -89.5602, 198.5325, 38.7556, 38.5446, -173.2831, 293.7115, -204.0254, -92.9775, -157.026, 64.4671, 11.6679, -200.2824, -225.0971, -75.7923, 268.0069, -72.0642], 2: [-12.9609, -141.8752, 146.1252, -10.9072, -74.338, -81.2214, -212.8647, -55.3229, -7.7403, -192.7125, 27.3991, -113.9109, 96.7002, 185.7276, 73.1729, -70.496, -100.3558, 151.6967, -2.8725, 101.6979, -257.0346, 296.2685, -228.557, -40.953, -137.485, 46.1819, 8.2551, -251.8766, -224.5837, -18.7147, 239.0382, -48.6348]}
     """
     annot_hash_data = ibs.depc_annot.get('FinfindrFeature', aid_list, 'response')
+
     aid_hash_dict = {}
     for aid, hash_data in zip(aid_list, annot_hash_data):
         # hash_result comes from finFindR in this format
-        aid_hash_dict[aid] = hash_data['hash'][0]
-        #TODO: should we throw an exception in cases where there's mult images for one name?
+
+        if hash_data is None:
+            hash_ = None
+        else:
+            hash_ = hash_data['hash'][0]
+
+        if hash_ is None and skip_failures:
+            continue
+
+        assert aid not in aid_hash_dict
+        aid_hash_dict[aid] = hash_
 
     return aid_hash_dict
 
@@ -351,8 +395,8 @@ def finfindr_distance_depc(depc, qaid_list, daid_list, config):
     qaids = list(set(qaid_list))
     daids = list(set(daid_list))
 
-    response = ibs.ibeis_plugin_finfindr_identify(qaids, daids)
-    sorted_scores = ibs.finfindr_ibeis_score_list_from_finfindr_result(daids, response)
+    qaids_clean, daids_clean, response = ibs.ibeis_plugin_finfindr_identify(qaids, daids)
+    sorted_scores = ibs.finfindr_ibeis_score_list_from_finfindr_result(qaids, daids, qaids_clean, daids_clean, response)
 
     for score in sorted_scores:
         yield (score, )
@@ -360,7 +404,7 @@ def finfindr_distance_depc(depc, qaid_list, daid_list, config):
 
 # assuming there was only one qaid, we don't need it for this step
 @register_ibs_method
-def finfindr_ibeis_score_list_from_finfindr_result(ibs, daid_list, response, query_no=0):
+def finfindr_ibeis_score_list_from_finfindr_result(ibs, qaid_list, daid_list, qaid_list_clean, daid_list_clean, response, query_no=0):
     r"""
     finFindR returns match results in a strange format. This func converts that
     to ibeis's familiar score list.
@@ -385,41 +429,65 @@ def finfindr_ibeis_score_list_from_finfindr_result(ibs, daid_list, response, que
         >>> depc = ibs.depc_annot
         >>> qaid = [1]
         >>> daid_list = [2, 3, 4, 5]
-        >>> id_response = ibs.ibeis_plugin_finfindr_identify(qaid, daid_list)
-        >>> result = ibs.finfindr_ibeis_score_list_from_finfindr_result(daid_list, id_response)
+        >>> qaid_list_clean, daid_list_clean, id_response = ibs.ibeis_plugin_finfindr_identify(qaid, daid_list)
+        >>> result = ibs.finfindr_ibeis_score_list_from_finfindr_result(qaid, daid_list, qaid_list_clean, daid_list_clean, id_response)
         [217.5667, 532.0134, 725.5806, 651.7316]
     """
-    n_scores = len(daid_list)
-    sorted_score_list = [None] * n_scores
+    score_dict = {}
 
-    import ast
-    score_dict = ast.literal_eval(response.text)
+    try:
+        # It's possible that response is None (caught API failure) or it's due to a parse error
+        response_dict = response.json()
 
-    for i in range(n_scores):
-        # +1 and -1 are here bc finFindR / R arrays start at 1
-        jaime_key    = "V" + str(i + 1)
-        score_index  = score_dict['sortingIndex'][query_no][jaime_key] - 1
-        ith_distance = score_dict[   'distances'][query_no][jaime_key]
-        sorted_score_list[score_index] = ith_distance
+        # Get values from the API response
+        sortingIndex = response_dict['sortingIndex'][query_no]
+        distances    = response_dict[   'distances'][query_no]
 
-    assert None not in sorted_score_list
+        sortingIndex_values = list(sortingIndex.values())
+        sortingIndex_values_ = [
+            sortingIndex_value - 1
+            for sortingIndex_value in sortingIndex_values
+        ]
+        # Reorder the cleaned daid_list
+        daid_list_clean_sorted = ut.take(daid_list_clean, sortingIndex_values_)
 
-    return sorted_score_list
+        for ibeis_index, daid_clean in enumerate(daid_list_clean_sorted):
+            jaime_index = "V%d" % (ibeis_index + 1, )
+            score_dict[daid_clean] = distances[jaime_index]
+    except:
+        pass
+
+    # It's possible that some of the database aids returned a failed extraction, simply return None for this case (scoring will convert None values to 0)
+    score_list = [
+        score_dict.get(daid, None)
+        for daid in daid_list
+    ]
+
+    return score_list
 
 
 @register_ibs_method
 def finfindr_passport(ibs, aid, output=False, config={}, **kwargs):
 
-    edge_coords = ibs.depc_annot.get('FinfindrFeature', [aid], 'response')[0]['coordinates']
+    annot_hash_data = ibs.depc_annot.get('FinfindrFeature', [aid], 'response')
+    hash_data = annot_hash_data[0]
+
+    if hash_data is None:
+        edge_coords = None
+    else:
+        edge_coords = hash_data['coordinates']
+
     image_path  = ibs.finfindr_annot_chip_fpath_from_aid(aid)
     pil_image   = Image.open(image_path)
 
     # we now modify pil_image and save it elsewhere when we're done
     draw = ImageDraw.Draw(pil_image)
     # convert edge_coords to the format draw.line is looking for
-    edge_coord_tuples = [(coord[0], coord[1]) for coord in edge_coords]
-    #TODO: Add start and end dot to show directionality
-    draw.line(xy=edge_coord_tuples, fill='yellow', width=3)
+
+    if edge_coords is not None:
+        edge_coord_tuples = [(coord[0], coord[1]) for coord in edge_coords]
+        #TODO: Add start and end dot to show directionality
+        draw.line(xy=edge_coord_tuples, fill='yellow', width=3)
 
     if output:
         local_path = dirname(abspath(__file__))
@@ -675,7 +743,11 @@ def ibeis_plugin_finfindr(depc, qaid_list, daid_list, config):
 
 
 def finfindr_distance_to_match_score(distance, max_distance_scalar=1000.):
-    return np.exp(-distance / max_distance_scalar)
+    if distance is None:
+        score = 0.0
+    else:
+        score = np.exp(-distance / max_distance_scalar)
+    return score
 
 
 if __name__ == '__main__':
