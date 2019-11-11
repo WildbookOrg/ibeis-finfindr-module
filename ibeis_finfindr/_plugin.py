@@ -329,6 +329,8 @@ def ibeis_plugin_finfindr_identify(ibs, qaid_list, daid_list, use_depc=True, con
 
         response = requests.post(url, json=finfindr_arg_dict)
 
+    ut.embed()
+
     return qaid_list_clean, daid_list_clean, response
 
 
@@ -387,7 +389,7 @@ class FinfindrDistanceConfig(dt.Config):  # NOQA
     colnames=['distance'], coltypes=[float],
     configclass=FinfindrDistanceConfig,
     fname='finfindr',
-    chunksize=100)
+    chunksize=1024)
 def finfindr_distance_depc(depc, qaid_list, daid_list, config):
     # qaid and aid lists are parallel
     # The doctest for ibeis_plugin_deepsense_identify_deepsense_ids also covers this func
