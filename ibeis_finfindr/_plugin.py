@@ -17,6 +17,8 @@ Download the latest image required by this plugin:
 
     docker pull wildme.azurecr.io/ibeis/finfindr:0.1.7
 
+    NV_GPU=1 nvidia-docker container run -d -p 8004:8004 --name flukebook_finfindr --restart unless-stopped wildme.azurecr.io/ibeis/finfindr:0.1.7
+
 '''
 
 # Section: Global vars
@@ -748,7 +750,7 @@ def finfindr_distance_to_match_score(distance, max_distance_scalar=500.0):
         score = 0.0
     else:
         score = np.exp(-1.0 * distance / max_distance_scalar)
-    score = np.max(0.0, score)
+    score = max(0.0, score)
     return score
 
 
