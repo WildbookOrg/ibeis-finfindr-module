@@ -386,7 +386,7 @@ class FinfindrDistanceConfig(dt.Config):  # NOQA
     colnames=['distance'], coltypes=[float],
     configclass=FinfindrDistanceConfig,
     fname='finfindr',
-    chunksize=128)
+    chunksize=8192)
 def finfindr_distance_depc(depc, qaid_list, daid_list, config):
     # qaid and aid lists are parallel
     # The doctest for ibeis_plugin_deepsense_identify_deepsense_ids also covers this func
