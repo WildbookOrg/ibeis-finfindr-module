@@ -320,8 +320,9 @@ def ibeis_plugin_finfindr_identify(ibs, qaid_list, daid_list, use_depc=True, con
         response = None
     else:
         finfindr_arg_dict = {}
-        finfindr_arg_dict['queryHashData'] = q_feature_dict
+        finfindr_arg_dict['queryHashData']     = q_feature_dict
         finfindr_arg_dict['referenceHashData'] = d_feature_dict
+        finfindr_arg_dict['batchSize']         = 100
 
         url = ibs.finfindr_ensure_backend(**kwargs)
         url = 'http://%s/ocpu/library/finFindR/R/distanceToRefParallel/json' % (url)
@@ -386,7 +387,7 @@ class FinfindrDistanceConfig(dt.Config):  # NOQA
     colnames=['distance'], coltypes=[float],
     configclass=FinfindrDistanceConfig,
     fname='finfindr',
-    chunksize=8192)
+    chunksize=100)
 def finfindr_distance_depc(depc, qaid_list, daid_list, config):
     # qaid and aid lists are parallel
     # The doctest for ibeis_plugin_deepsense_identify_deepsense_ids also covers this func
@@ -742,11 +743,12 @@ def ibeis_plugin_finfindr(depc, qaid_list, daid_list, config):
         yield (finfindr_distance_to_match_score(distance),)
 
 
-def finfindr_distance_to_match_score(distance, max_distance_scalar=1000.):
+def finfindr_distance_to_match_score(distance, max_distance_scalar=500.0):
     if distance is None:
         score = 0.0
     else:
-        score = np.exp(-distance / max_distance_scalar)
+        score = np.exp(-1.0 * distance / max_distance_scalar)
+    score = np.max(0.0, score)
     return score
 
 
