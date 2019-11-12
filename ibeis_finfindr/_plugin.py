@@ -324,8 +324,8 @@ def ibeis_plugin_finfindr_identify(ibs, qaid_list, daid_list, use_depc=True, con
         finfindr_arg_dict = {}
         finfindr_arg_dict['queryHashData']     = q_feature_dict
         finfindr_arg_dict['referenceHashData'] = d_feature_dict
-        # finfindr_arg_dict['justIndex']         = 1
-        # finfindr_arg_dict['batchSize']         = 100
+        finfindr_arg_dict['justIndex']         = 0
+        finfindr_arg_dict['batchSize']         = 1
 
         url = ibs.finfindr_ensure_backend(**kwargs)
         url = 'http://%s/ocpu/library/finFindR/R/distanceToRefParallel/json' % (url)
@@ -438,6 +438,8 @@ def finfindr_ibeis_score_list_from_finfindr_result(ibs, qaid_list, daid_list, qa
         [217.5667, 532.0134, 725.5806, 651.7316]
     """
     score_dict = {}
+
+    ut.embed()
 
     try:
         # It's possible that response is None (caught API failure) or it's due to a parse error
