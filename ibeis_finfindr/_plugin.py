@@ -33,6 +33,9 @@ register_api = controller_inject.get_ibeis_flask_api(__name__)
 register_preproc_annot = controller_inject.register_preprocs['annot']
 
 
+register_route = controller_inject.get_ibeis_flask_route(__name__)
+
+
 # TODO: abstract this out to a func that takes endpoints as an arg and lives in the docker controller
 def _ibeis_plugin_finfindr_check_container(url):
     endpoints = {
@@ -536,6 +539,41 @@ def finfindr_passport_depc(depc, aid_list, config):
     for aid in aid_list:
         image = ibs.finfindr_passport(aid, config=config)
         yield (image, )
+
+
+@register_route('/api/plugin/finfindr/passport/src/<aid>/', methods=['GET'], __route_prefix_check__=False, __route_authenticate__=False)
+def finfindr_passport_src(aid=None, ibs=None, **kwargs):
+    from six.moves import cStringIO as StringIO
+    from io import BytesIO
+    from PIL import Image  # NOQA
+    from flask import current_app, send_file
+    from ibeis.web import appfuncs as appf
+    import six
+
+    if ibs is None:
+        ibs = current_app.ibs
+
+    aid = int(aid)
+    aid_list = [aid]
+    passport_paths = ibs.depc_annot.get('FinfindrPassport', aid_list, 'image', read_extern=False, ensure=True)
+    passport_path = passport_paths[0]
+
+    # Load image
+    assert passport_paths is not None, 'passport path should not be None'
+    image = vt.imread(passport_path, orient='auto')
+    image = appf.resize_via_web_parameters(image)
+    image = image[:, :, ::-1]
+
+    # Encode image
+    image_pil = Image.fromarray(image)
+    if six.PY2:
+        img_io = StringIO()
+    else:
+        img_io = BytesIO()
+    image_pil.save(img_io, 'JPEG', quality=100)
+    img_io.seek(0)
+
+    return send_file(img_io, mimetype='image/jpeg')
 
 
 # TODO: move this into the ibeis package. Literally copy-pasted from deepsense right now
