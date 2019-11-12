@@ -439,8 +439,6 @@ def finfindr_ibeis_score_list_from_finfindr_result(ibs, qaid_list, daid_list, qa
     """
     score_dict = {}
 
-    ut.embed()
-
     try:
         # It's possible that response is None (caught API failure) or it's due to a parse error
         response_dict = response.json()
