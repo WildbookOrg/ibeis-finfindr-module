@@ -302,24 +302,21 @@ def ibeis_plugin_finfindr_identify(ibs, qaid_list, daid_list, use_depc=True, con
           ]
         }
     """
+    qaid_list = sorted(qaid_list)
+    daid_list = sorted(daid_list)
+
     q_feature_dict = ibs.finfindr_aid_feature_dict(qaid_list, skip_failures=True)
     d_feature_dict = ibs.finfindr_aid_feature_dict(daid_list, skip_failures=True)
 
     qaid_list_clean = list(q_feature_dict.keys())
     daid_list_clean = list(d_feature_dict.keys())
-    qaid_list_dirty = set(qaid_list) - set(qaid_list_clean)
-    daid_list_dirty = set(daid_list) - set(daid_list_clean)
 
     num_qaid_clean = len(qaid_list_clean)
     num_daid_clean = len(daid_list_clean)
-    num_qaid_dirty = len(qaid_list_dirty)
-    num_daid_dirty = len(daid_list_dirty)
 
     print('[finfindr] Retrieved features for %d qaids, %d daids' % (len(qaid_list), len(daid_list), ))
     print('[finfindr] \tClean qaids: %d' % (num_qaid_clean, ))
     print('[finfindr] \tClean daids: %d' % (num_daid_clean, ))
-    print('[finfindr] \tDirty qaids: %d' % (num_qaid_dirty, ))
-    print('[finfindr] \tDirty daids: %d' % (num_daid_dirty, ))
 
     if 0 in [num_qaid_clean, num_daid_clean]:
         response = None
@@ -401,18 +398,21 @@ def finfindr_distance_depc(depc, qaid_list, daid_list, config):
     ibs = depc.controller
 
     qaids = list(set(qaid_list))
+    assert len(qaids) == 1
     daids = list(set(daid_list))
 
     qaids_clean, daids_clean, response = ibs.ibeis_plugin_finfindr_identify(qaids, daids)
-    sorted_scores = ibs.finfindr_ibeis_score_list_from_finfindr_result(qaids, daids, qaids_clean, daids_clean, response)
+    distance_dict = ibs.finfindr_ibeis_distance_list_from_finfindr_result(qaids, daids, qaids_clean, daids_clean, response)
 
-    for score in sorted_scores:
-        yield (score, )
+    zipped = list(zip(qaid_list, daid_list))
+    for qaid, daid in zipped:
+        distance = distance_dict.get(daid, None)
+        yield (distance, )
 
 
 # assuming there was only one qaid, we don't need it for this step
 @register_ibs_method
-def finfindr_ibeis_score_list_from_finfindr_result(ibs, qaid_list, daid_list, qaid_list_clean, daid_list_clean, response, query_no=0):
+def finfindr_ibeis_distance_list_from_finfindr_result(ibs, qaid_list, daid_list, qaid_list_clean, daid_list_clean, response, query_no=0):
     r"""
     finFindR returns match results in a strange format. This func converts that
     to ibeis's familiar score list.
@@ -422,8 +422,8 @@ def finfindr_ibeis_score_list_from_finfindr_result(ibs, qaid_list, daid_list, qa
         response: the response from finFindR; output of ibeis_plugin_finfindr_identify
 
     CommandLine:
-        python -m ibeis_finfindr._plugin --test-finfindr_ibeis_score_list_from_finfindr_result
-        python -m ibeis_finfindr._plugin --test-finfindr_ibeis_score_list_from_finfindr_result:0
+        python -m ibeis_finfindr._plugin --test-finfindr_ibeis_distance_list_from_finfindr_result
+        python -m ibeis_finfindr._plugin --test-finfindr_ibeis_distance_list_from_finfindr_result:0
 
     Example0:
         >>> # ENABLE_DOCTEST
@@ -438,23 +438,20 @@ def finfindr_ibeis_score_list_from_finfindr_result(ibs, qaid_list, daid_list, qa
         >>> qaid = [1]
         >>> daid_list = [2, 3, 4, 5]
         >>> qaid_list_clean, daid_list_clean, id_response = ibs.ibeis_plugin_finfindr_identify(qaid, daid_list)
-        >>> result = ibs.finfindr_ibeis_score_list_from_finfindr_result(qaid, daid_list, qaid_list_clean, daid_list_clean, id_response)
+        >>> result = ibs.finfindr_ibeis_distance_list_from_finfindr_result(qaid, daid_list, qaid_list_clean, daid_list_clean, id_response)
         [217.5667, 532.0134, 725.5806, 651.7316]
     """
-    score_dict = {}
+    distance_dict = {}
 
     try:
         # It's possible that response is None (caught API failure) or it's due to a parse error
         response_dict = response.json()
 
-        # This is because finfindr seemingly sorts the keylist lexigraphically
-        daid_list_clean = sorted(daid_list_clean)
-
         # Get values from the API response
         sortingIndex = response_dict['sortingIndex'][query_no]
         distances    = response_dict[   'distances'][query_no]
 
-        key_list = sortingIndex.keys()
+        key_list = sorted(list(sortingIndex.keys()))
         for key in key_list:
             assert key in distances
             index = sortingIndex.get(key, None)
@@ -462,20 +459,14 @@ def finfindr_ibeis_score_list_from_finfindr_result(ibs, qaid_list, daid_list, qa
             if index is None:
                 continue
             index -= 1
-            daid_clean = daid_list_clean[index]
+            daid_clean_str = daid_list_clean[index]
             # casting daids back-forth bc finfindr sorts lexigraphically on string keys
-            daid_clean = int(daid_clean)
-            score_dict[daid_clean] = distance
+            daid_clean = int(daid_clean_str)
+            distance_dict[daid_clean] = distance
     except:
         pass
 
-    # It's possible that some of the database aids returned a failed extraction, simply return None for this case (scoring will convert None values to 0)
-    score_list = [
-        score_dict.get(daid, None)
-        for daid in daid_list
-    ]
-
-    return score_list
+    return distance_dict
 
 
 @register_ibs_method
@@ -775,8 +766,8 @@ def ibeis_plugin_finfindr(depc, qaid_list, daid_list, config):
         >>> name_score_list = am.name_score_list
         >>> unique_name_text_list = ibs.get_name_texts(unique_nids)
         >>> name_score_list_ = ['%0.04f' % (score, ) for score in am.name_score_list]
-        >>> name_score_dict = dict(zip(unique_name_text_list, name_score_list_))
-        >>> result = name_score_dict
+        >>> name_distance_dict = dict(zip(unique_name_text_list, name_score_list_))
+        >>> result = name_distance_dict
         {'F272': '0.8045', 'F274': '1.0715', 'F276': '0.5211'}
 
     """
@@ -786,7 +777,8 @@ def ibeis_plugin_finfindr(depc, qaid_list, daid_list, config):
     distances = ibs.depc_annot.get('FinfindrDistance', (qaid_list, daid_list), 'distance')
     for distance in distances:
         # I'm still confused about these trailing commas. Are we casting this to a unary tuple?
-        yield (finfindr_distance_to_match_score(distance),)
+        score = finfindr_distance_to_match_score(distance)
+        yield (score,)
 
 
 def finfindr_distance_to_match_score(distance, max_distance_scalar=500.0):
@@ -802,12 +794,12 @@ def finfindr_double_check(ibs, qaid_list, daid_list):
     qaids = list(set(qaid_list))
     daids = list(set(daid_list))
     qaids_clean, daids_clean, response = ibs.ibeis_plugin_finfindr_identify(qaids, daids, use_depc=False)
-    sorted_scores = ibs.finfindr_ibeis_score_list_from_finfindr_result(qaids, daids, qaids_clean, daids_clean, response)
+    sorted_scores = ibs.finfindr_ibeis_distance_list_from_finfindr_result(qaids, daids, qaids_clean, daids_clean, response)
     sorted_scores_ = []
     for i in range(len(daid_list)):
         daids_ = [daid_list[i]]
         qaids_clean_, daids_clean_, response_ = ibs.ibeis_plugin_finfindr_identify(qaids, daids_, use_depc=False)
-        score = ibs.finfindr_ibeis_score_list_from_finfindr_result(qaids, daids_, qaids_clean_, daids_clean_, response_)[0]
+        score = ibs.finfindr_ibeis_distance_list_from_finfindr_result(qaids, daids_, qaids_clean_, daids_clean_, response_)[0]
         sorted_scores_.append(score)
     return sorted_scores, sorted_scores_
 
@@ -817,12 +809,12 @@ def finfindr_double_check_random_order(ibs, qaid_list, daid_list):
     qaids = list(set(qaid_list))
     daids = list(set(daid_list))
     qaids_clean, daids_clean, response = ibs.ibeis_plugin_finfindr_identify(qaids, daids, use_depc=False)
-    sorted_scores = ibs.finfindr_ibeis_score_list_from_finfindr_result(qaids, daids, qaids_clean, daids_clean, response)
+    sorted_scores = ibs.finfindr_ibeis_distance_list_from_finfindr_result(qaids, daids, qaids_clean, daids_clean, response)
     sorted_scores_ = []
     for i in range(len(daid_list)):
         daids_ = [daid_list[i]]
         qaids_clean_, daids_clean_, response_ = ibs.ibeis_plugin_finfindr_identify(qaids, daids_, use_depc=False)
-        score = ibs.finfindr_ibeis_score_list_from_finfindr_result(qaids, daids_, qaids_clean_, daids_clean_, response_)[0]
+        score = ibs.finfindr_ibeis_distance_list_from_finfindr_result(qaids, daids_, qaids_clean_, daids_clean_, response_)[0]
         sorted_scores_.append(score)
     return sorted_scores, sorted_scores_
 
