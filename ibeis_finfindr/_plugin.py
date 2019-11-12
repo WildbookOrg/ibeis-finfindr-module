@@ -324,6 +324,7 @@ def ibeis_plugin_finfindr_identify(ibs, qaid_list, daid_list, use_depc=True, con
         finfindr_arg_dict = {}
         finfindr_arg_dict['queryHashData']     = q_feature_dict
         finfindr_arg_dict['referenceHashData'] = d_feature_dict
+        # finfindr_arg_dict['justIndex']         = 1
         # finfindr_arg_dict['batchSize']         = 100
 
         url = ibs.finfindr_ensure_backend(**kwargs)
@@ -446,18 +447,21 @@ def finfindr_ibeis_score_list_from_finfindr_result(ibs, qaid_list, daid_list, qa
         sortingIndex = response_dict['sortingIndex'][query_no]
         distances    = response_dict[   'distances'][query_no]
 
-        sortingIndex_keys = list(sortingIndex.keys())
-        sortingIndex_values = list(sortingIndex.values())
-        sortingIndex_values_ = [
-            sortingIndex_value - 1
-            for sortingIndex_value in sortingIndex_values
+        daid_list_clean_names = [
+            'V%d' % (index + 1)
+            for index, daid_clean in enumerate(daid_list_clean)
         ]
-        daid_index_dict = dict(zip(sortingIndex_values_, sortingIndex_keys))
+        sortingIndex_order = ut.take(sortingIndex, daid_list_clean_names)
+        sortingIndex_order_ = [value - 1 for value in sortingIndex_order]
+        daid_list_clean_ordered = ut.take(daid_list_clean, sortingIndex_order_)
 
-        for ibeis_index, daid_clean in enumerate(daid_list_clean):
-            jaime_index = daid_index_dict.get(ibeis_index, None)
-            score = distances.get(jaime_index, None)
-            score_dict[daid_clean] = score
+        daid_list_clean_ordered_names = [
+            'V%d' % (index + 1)
+            for index, daid_clean_ordered in enumerate(daid_list_clean_ordered)
+        ]
+        daid_list_clean_ordered_distances = ut.take(distances, daid_list_clean_ordered_names)
+
+        score_dict = dict(zip(daid_list_clean_ordered, daid_list_clean_ordered_distances))
     except:
         pass
 
