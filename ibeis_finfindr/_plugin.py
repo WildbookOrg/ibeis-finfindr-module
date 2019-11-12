@@ -439,8 +439,6 @@ def finfindr_ibeis_score_list_from_finfindr_result(ibs, qaid_list, daid_list, qa
     """
     score_dict = {}
 
-    ut.embed()
-
     try:
         # It's possible that response is None (caught API failure) or it's due to a parse error
         response_dict = response.json()
@@ -449,21 +447,16 @@ def finfindr_ibeis_score_list_from_finfindr_result(ibs, qaid_list, daid_list, qa
         sortingIndex = response_dict['sortingIndex'][query_no]
         distances    = response_dict[   'distances'][query_no]
 
-        daid_list_clean_names = [
-            'V%d' % (index + 1)
-            for index, daid_clean in enumerate(daid_list_clean)
-        ]
-        sortingIndex_order = ut.take(sortingIndex, daid_list_clean_names)
-        sortingIndex_order_ = [value - 1 for value in sortingIndex_order]
-        daid_list_clean_ordered = ut.take(daid_list_clean, sortingIndex_order_)
-
-        daid_list_clean_ordered_names = [
-            'V%d' % (index + 1)
-            for index, daid_clean_ordered in enumerate(daid_list_clean_ordered)
-        ]
-        daid_list_clean_ordered_distances = ut.take(distances, daid_list_clean_ordered_names)
-
-        score_dict = dict(zip(daid_list_clean_ordered, daid_list_clean_ordered_distances))
+        key_list = sortingIndex.keys()
+        for key in key_list:
+            assert key in distances
+            index = sortingIndex.get(key, None)
+            distance = distances.get(key, None)
+            if index is None:
+                continue
+            index -= 1
+            daid_clean = daid_list_clean[index]
+            score_dict[daid_clean] = distance
     except:
         pass
 
