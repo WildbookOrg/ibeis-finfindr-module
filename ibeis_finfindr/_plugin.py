@@ -446,17 +446,18 @@ def finfindr_ibeis_score_list_from_finfindr_result(ibs, qaid_list, daid_list, qa
         sortingIndex = response_dict['sortingIndex'][query_no]
         distances    = response_dict[   'distances'][query_no]
 
+        sortingIndex_keys = list(sortingIndex.keys())
         sortingIndex_values = list(sortingIndex.values())
         sortingIndex_values_ = [
             sortingIndex_value - 1
             for sortingIndex_value in sortingIndex_values
         ]
-        # Reorder the cleaned daid_list
-        daid_list_clean_sorted = ut.take(daid_list_clean, sortingIndex_values_)
+        daid_index_dict = dict(zip(sortingIndex_values_, sortingIndex_keys))
 
-        for ibeis_index, daid_clean in enumerate(daid_list_clean_sorted):
-            jaime_index = "V%d" % (ibeis_index + 1, )
-            score_dict[daid_clean] = distances[jaime_index]
+        for ibeis_index, daid_clean in enumerate(daid_list_clean):
+            jaime_index = daid_index_dict.get(ibeis_index, None)
+            score = distances.get(jaime_index, None)
+            score_dict[daid_clean] = score
     except:
         pass
 
