@@ -379,7 +379,8 @@ def finfindr_aid_feature_dict(ibs, aid_list, skip_failures=False):
             continue
 
         assert aid not in aid_hash_dict
-        aid_hash_dict[aid] = hash_
+        aid_key = '%08d' % aid
+        aid_hash_dict[aid_key] = hash_
 
     return aid_hash_dict
 
@@ -446,6 +447,9 @@ def finfindr_ibeis_score_list_from_finfindr_result(ibs, qaid_list, daid_list, qa
         # It's possible that response is None (caught API failure) or it's due to a parse error
         response_dict = response.json()
 
+        # This is because finfindr seemingly sorts the keylist lexigraphically
+        daid_list_clean = sorted(daid_list_clean)
+
         # Get values from the API response
         sortingIndex = response_dict['sortingIndex'][query_no]
         distances    = response_dict[   'distances'][query_no]
@@ -459,6 +463,8 @@ def finfindr_ibeis_score_list_from_finfindr_result(ibs, qaid_list, daid_list, qa
                 continue
             index -= 1
             daid_clean = daid_list_clean[index]
+            # casting daids back-forth bc finfindr sorts lexigraphically on string keys
+            daid_clean = int(daid_clean)
             score_dict[daid_clean] = distance
     except:
         pass
@@ -790,6 +796,35 @@ def finfindr_distance_to_match_score(distance, max_distance_scalar=500.0):
         score = np.exp(-1.0 * distance / max_distance_scalar)
     score = max(0.0, score)
     return score
+
+
+def finfindr_double_check(ibs, qaid_list, daid_list):
+    qaids = list(set(qaid_list))
+    daids = list(set(daid_list))
+    qaids_clean, daids_clean, response = ibs.ibeis_plugin_finfindr_identify(qaids, daids, use_depc=False)
+    sorted_scores = ibs.finfindr_ibeis_score_list_from_finfindr_result(qaids, daids, qaids_clean, daids_clean, response)
+    sorted_scores_ = []
+    for i in range(len(daid_list)):
+        daids_ = [daid_list[i]]
+        qaids_clean_, daids_clean_, response_ = ibs.ibeis_plugin_finfindr_identify(qaids, daids_, use_depc=False)
+        score = ibs.finfindr_ibeis_score_list_from_finfindr_result(qaids, daids_, qaids_clean_, daids_clean_, response_)[0]
+        sorted_scores_.append(score)
+    return sorted_scores, sorted_scores_
+
+
+@register_ibs_method
+def finfindr_double_check_random_order(ibs, qaid_list, daid_list):
+    qaids = list(set(qaid_list))
+    daids = list(set(daid_list))
+    qaids_clean, daids_clean, response = ibs.ibeis_plugin_finfindr_identify(qaids, daids, use_depc=False)
+    sorted_scores = ibs.finfindr_ibeis_score_list_from_finfindr_result(qaids, daids, qaids_clean, daids_clean, response)
+    sorted_scores_ = []
+    for i in range(len(daid_list)):
+        daids_ = [daid_list[i]]
+        qaids_clean_, daids_clean_, response_ = ibs.ibeis_plugin_finfindr_identify(qaids, daids_, use_depc=False)
+        score = ibs.finfindr_ibeis_score_list_from_finfindr_result(qaids, daids_, qaids_clean_, daids_clean_, response_)[0]
+        sorted_scores_.append(score)
+    return sorted_scores, sorted_scores_
 
 
 if __name__ == '__main__':
