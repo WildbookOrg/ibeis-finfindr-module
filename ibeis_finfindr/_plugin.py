@@ -26,6 +26,9 @@ BACKEND_URL = None
 DIM_SIZE = 2000
 
 
+GLOBAL_FEATURE_IN_MEMORY_CACHE = {}
+
+
 # Section: ibeis binds
 (print, rrr, profile) = ut.inject2(__name__)
 _, register_ibs_method = controller_inject.make_ibs_register_decorator(__name__)
@@ -361,7 +364,22 @@ def finfindr_aid_feature_dict(ibs, aid_list, skip_failures=False):
         >>> result = ibs.finfindr_aid_feature_dict(aid_list)
         {1: [31.7485, -145.0079, 152.3881, -20.2424, -112.6928, -92.4987, -166.5634, 12.4394, 15.0508, -146.4167, 97.4581, -146.8563, 89.4078, 213.0233, 43.8438, -58.0497, -89.5602, 198.5325, 38.7556, 38.5446, -173.2831, 293.7115, -204.0254, -92.9775, -157.026, 64.4671, 11.6679, -200.2824, -225.0971, -75.7923, 268.0069, -72.0642], 2: [-12.9609, -141.8752, 146.1252, -10.9072, -74.338, -81.2214, -212.8647, -55.3229, -7.7403, -192.7125, 27.3991, -113.9109, 96.7002, 185.7276, 73.1729, -70.496, -100.3558, 151.6967, -2.8725, 101.6979, -257.0346, 296.2685, -228.557, -40.953, -137.485, 46.1819, 8.2551, -251.8766, -224.5837, -18.7147, 239.0382, -48.6348]}
     """
-    annot_hash_data = ibs.depc_annot.get('FinfindrFeature', aid_list, 'response')
+    global GLOBAL_FEATURE_IN_MEMORY_CACHE
+
+    dirty_aid_list = []
+    for aid in aid_list:
+        if aid not in GLOBAL_FEATURE_IN_MEMORY_CACHE:
+            dirty_aid_list.append(aid)
+
+    dirty_hash_data_list = ibs.depc_annot.get('FinfindrFeature', dirty_aid_list, 'response')
+    zipped = zip(dirty_aid_list, dirty_hash_data_list)
+    for dirty_aid, dirty_hash_data in zipped:
+        GLOBAL_FEATURE_IN_MEMORY_CACHE[dirty_aid] = dirty_hash_data
+
+    for aid in aid_list:
+        assert aid in GLOBAL_FEATURE_IN_MEMORY_CACHE
+
+    annot_hash_data = ut.take(GLOBAL_FEATURE_IN_MEMORY_CACHE, aid_list)
 
     aid_hash_dict = {}
     for aid, hash_data in zip(aid_list, annot_hash_data):
