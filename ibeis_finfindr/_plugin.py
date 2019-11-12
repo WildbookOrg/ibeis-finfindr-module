@@ -390,7 +390,7 @@ class FinfindrDistanceConfig(dt.Config):  # NOQA
     colnames=['distance'], coltypes=[float],
     configclass=FinfindrDistanceConfig,
     fname='finfindr',
-    chunksize=64)
+    chunksize=1000)
 def finfindr_distance_depc(depc, qaid_list, daid_list, config):
     # qaid and aid lists are parallel
     # The doctest for ibeis_plugin_deepsense_identify_deepsense_ids also covers this func
@@ -438,6 +438,8 @@ def finfindr_ibeis_score_list_from_finfindr_result(ibs, qaid_list, daid_list, qa
         [217.5667, 532.0134, 725.5806, 651.7316]
     """
     score_dict = {}
+
+    ut.embed()
 
     try:
         # It's possible that response is None (caught API failure) or it's due to a parse error
