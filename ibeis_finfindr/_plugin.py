@@ -324,7 +324,7 @@ def ibeis_plugin_finfindr_identify(ibs, qaid_list, daid_list, use_depc=True, con
         finfindr_arg_dict = {}
         finfindr_arg_dict['queryHashData']     = q_feature_dict
         finfindr_arg_dict['referenceHashData'] = d_feature_dict
-        finfindr_arg_dict['justIndex']         = 0
+        finfindr_arg_dict['justIndex']         = 1
         finfindr_arg_dict['batchSize']         = 1
 
         url = ibs.finfindr_ensure_backend(**kwargs)
