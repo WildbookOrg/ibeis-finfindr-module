@@ -735,7 +735,7 @@ class FinfindrRequest(dt.base.VsOneSimilarityRequest):
         return cm_list
 
     def execute(request, *args, **kwargs):
-        kwargs['use_cache'] = False
+        # kwargs['use_cache'] = False
         result_list = super(FinfindrRequest, request).execute(*args, **kwargs)
         qaids = kwargs.pop('qaids', None)
         # TODO: is this filtering necessary?
