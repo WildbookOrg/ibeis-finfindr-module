@@ -57,7 +57,7 @@ def _ibeis_plugin_finfindr_check_container(url):
         try:
             # http options returns the comma-sep methods supported at the url and endpoint, e.g. POST
             response = requests.options(url_, timeout=1)
-        except:
+        except Exception:
             response = None
 
         if response is not None and response.status_code:
@@ -481,7 +481,7 @@ def finfindr_ibeis_distance_list_from_finfindr_result(ibs, qaid_list, daid_list,
             # casting daids back-forth bc finfindr sorts lexigraphically on string keys
             daid_clean = int(daid_clean_str)
             distance_dict[daid_clean] = distance
-    except:
+    except Exception:
         pass
 
     return distance_dict
