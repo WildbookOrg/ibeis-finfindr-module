@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 from __future__ import absolute_import, division, print_function
 from os.path import abspath, exists, join, dirname, split
 import ibeis
