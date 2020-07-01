@@ -3,13 +3,14 @@
 from __future__ import absolute_import, print_function, division
 import subprocess
 import os
+
 try:
     from setuptools import setup
 except ImportError:
     from distutils.core import setup
 
 
-CLASSIFIERS = '''
+CLASSIFIERS = """
 Development Status :: 3 - Alpha
 Intended Audience :: Developers
 Intended Audience :: Science/Research
@@ -25,31 +26,32 @@ Programming Language :: Python :: 3
 Programming Language :: Python :: 3.3
 Programming Language :: Python :: 3.4
 Topic :: Scientific/Engineering :: Bio-Informatics
-'''
-NAME                = 'IBEIS finFindR Plugin'
-MAINTAINER          = 'Wildbook Org. | IBEIS IA'
-MAINTAINER_EMAIL    = 'info@wildme.org'
-DESCRIPTION         = 'An IBEIS plugin to add the finFindR dolphin ID algorithm.'
-LONG_DESCRIPTION    = DESCRIPTION
-KEYWORDS            = ['ibeis', 'plugin', 'finFindR', 'wildbook', 'ia']
-URL                 = 'https://github.com/WildbookOrg/'
-DOWNLOAD_URL        = ''
-LICENSE             = 'Apache'
-AUTHOR              = MAINTAINER
-AUTHOR_EMAIL        = MAINTAINER_EMAIL
-PLATFORMS           = ['Windows', 'Linux', 'Solaris', 'Mac OS-X', 'Unix']
-MAJOR               = 0
-MINOR               = 1
-MICRO               = 0
-SUFFIX              = 'dev0'
-VERSION             = '%d.%d.%d.%s' % (MAJOR, MINOR, MICRO, SUFFIX)
-PACKAGES            = ['ibeis_finfindr']
+"""
+NAME = 'IBEIS finFindR Plugin'
+MAINTAINER = 'Wildbook Org. | IBEIS IA'
+MAINTAINER_EMAIL = 'info@wildme.org'
+DESCRIPTION = 'An IBEIS plugin to add the finFindR dolphin ID algorithm.'
+LONG_DESCRIPTION = DESCRIPTION
+KEYWORDS = ['ibeis', 'plugin', 'finFindR', 'wildbook', 'ia']
+URL = 'https://github.com/WildbookOrg/'
+DOWNLOAD_URL = ''
+LICENSE = 'Apache'
+AUTHOR = MAINTAINER
+AUTHOR_EMAIL = MAINTAINER_EMAIL
+PLATFORMS = ['Windows', 'Linux', 'Solaris', 'Mac OS-X', 'Unix']
+MAJOR = 0
+MINOR = 1
+MICRO = 0
+SUFFIX = 'dev0'
+VERSION = '%d.%d.%d.%s' % (MAJOR, MINOR, MICRO, SUFFIX)
+PACKAGES = ['ibeis_finfindr']
 
 
 def git_version():
     """
     Return the sha1 of local git HEAD as a string.
     """
+
     def _minimal_ext_cmd(cmd):
         # construct minimal environment
         env = {}
@@ -61,12 +63,9 @@ def git_version():
         env['LANGUAGE'] = 'C'
         env['LANG'] = 'C'
         env['LC_ALL'] = 'C'
-        out = subprocess.Popen(
-            cmd,
-            stdout=subprocess.PIPE,
-            env=env
-        ).communicate()[0]
+        out = subprocess.Popen(cmd, stdout=subprocess.PIPE, env=env).communicate()[0]
         return out
+
     try:
         out = _minimal_ext_cmd(['git', 'rev-parse', 'HEAD'])
         git_revision = out.strip().decode('ascii')
@@ -76,7 +75,7 @@ def git_version():
 
 
 def write_version_py(filename=os.path.join('ibeis_finfindr', 'version.py')):
-    cnt = '''
+    cnt = """
 # THIS FILE IS GENERATED FROM SETUP.PY
 version = '%(version)s'
 git_revision = '%(git_revision)s'
@@ -84,7 +83,7 @@ full_version = '%%(version)s.%%(git_revision)s' %% {
     'version': version,
     'git_revision': git_revision,
 }
-'''
+"""
     FULL_VERSION = VERSION
     if os.path.isdir('.git'):
         GIT_REVISION = git_version()
@@ -94,10 +93,7 @@ full_version = '%%(version)s.%%(git_revision)s' %% {
         GIT_REVISION = 'unknown'
 
     FULL_VERSION += '.' + GIT_REVISION
-    text = cnt % {
-        'version': VERSION,
-        'git_revision': GIT_REVISION
-    }
+    text = cnt % {'version': VERSION, 'git_revision': GIT_REVISION}
     try:
         with open(filename, 'w') as a:
             a.write(text)
