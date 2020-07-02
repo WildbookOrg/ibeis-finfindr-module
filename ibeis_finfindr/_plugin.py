@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 from __future__ import absolute_import, division, print_function
 from os.path import abspath, exists, join, dirname, split
 import ibeis
@@ -12,14 +13,14 @@ import requests
 from PIL import Image, ImageDraw
 
 
-'''
+"""
 Download the latest image required by this plugin:
 
     docker pull wildme.azurecr.io/ibeis/finfindr:0.1.7
 
     NV_GPU=1 nvidia-docker container run -d -p 8004:8004 --name flukebook_finfindr --restart unless-stopped wildme.azurecr.io/ibeis/finfindr:0.1.7
 
-'''
+"""
 
 # Section: Global vars
 BACKEND_URL = None
@@ -42,17 +43,17 @@ register_route = controller_inject.get_ibeis_flask_route(__name__)
 # TODO: abstract this out to a func that takes endpoints as an arg and lives in the docker controller
 def _ibeis_plugin_finfindr_check_container(url):
     endpoints = {
-        'ocpu/library/finFindR/R/hashFromImage/json' : ['POST'],
-        'ocpu/library/finFindR/R/distanceToRefParallel/json' : ['POST'],
+        'ocpu/library/finFindR/R/hashFromImage/json': ['POST'],
+        'ocpu/library/finFindR/R/distanceToRefParallel/json': ['POST'],
     }
     flag_list = []
     endpoint_list = list(endpoints.keys())
     for endpoint in endpoint_list:
-        print('Checking endpoint %r against url %r' % (endpoint, url, ))
+        print('Checking endpoint %r against url %r' % (endpoint, url,))
         flag = False
         required_methods = set(endpoints[endpoint])
         supported_methods = None
-        url_ = 'http://%s/%s' % (url, endpoint, )
+        url_ = 'http://%s/%s' % (url, endpoint,)
 
         try:
             # http options returns the comma-sep methods supported at the url and endpoint, e.g. POST
@@ -73,17 +74,26 @@ def _ibeis_plugin_finfindr_check_container(url):
             if len(required_methods - supported_methods) == 0:
                 flag = True
         if not flag:
-            args = (endpoint, )
-            print('[ibeis_deepsense - FAILED CONTAINER ENSURE CHECK] Endpoint %r failed the check' % args)
-            print('\tRequired Methods:  %r' % (required_methods, ))
-            print('\tSupported Methods: %r' % (supported_methods, ))
-        print('\tFlag: %r' % (flag, ))
+            args = (endpoint,)
+            print(
+                '[ibeis_deepsense - FAILED CONTAINER ENSURE CHECK] Endpoint %r failed the check'
+                % args
+            )
+            print('\tRequired Methods:  %r' % (required_methods,))
+            print('\tSupported Methods: %r' % (supported_methods,))
+        print('\tFlag: %r' % (flag,))
         flag_list.append(flag)
     supported = np.all(flag_list)
     return supported
 
 
-docker_control.docker_register_config(None, 'flukebook_finfindr', 'wildme.azurecr.io/ibeis/finfindr:0.1.7', run_args={'_internal_port': 8004, '_external_suggested_port': 8004}, container_check_func=_ibeis_plugin_finfindr_check_container)
+docker_control.docker_register_config(
+    None,
+    'flukebook_finfindr',
+    'wildme.azurecr.io/ibeis/finfindr:0.1.7',
+    run_args={'_internal_port': 8004, '_external_suggested_port': 8004},
+    container_check_func=_ibeis_plugin_finfindr_check_container,
+)
 
 
 @register_ibs_method
@@ -98,7 +108,10 @@ def finfindr_ensure_backend(ibs, container_name='flukebook_finfindr', clone=None
             BACKEND_URL = BACKEND_URLS[0]
         else:
             BACKEND_URL = BACKEND_URLS[0]
-            args = (BACKEND_URLS, BACKEND_URL, )
+            args = (
+                BACKEND_URLS,
+                BACKEND_URL,
+            )
             print('[WARNING] Multiple BACKEND_URLS:\n\tFound: %r\n\tUsing: %r' % args)
     return BACKEND_URL
 
@@ -107,12 +120,12 @@ def finfindr_feature_extract_aid_helper(url, fpath, retry=3):
     import requests
     import json
 
-    print('Getting finfindr hash from %s for file %s' % (url, fpath, ))
+    print('Getting finfindr hash from %s for file %s' % (url, fpath,))
 
     url_ = 'http://%s/ocpu/library/finFindR/R/hashFromImage/json' % (url)
 
     with open(fpath, 'rb') as image_file:
-        post_file  = {
+        post_file = {
             'imageobj': image_file,
         }
         response = requests.post(url_, files=post_file, timeout=120)
@@ -128,7 +141,7 @@ def finfindr_feature_extract_aid_helper(url, fpath, retry=3):
 
         # Attempt to try again...
         if retry > 0:
-            print('Retrying this request again (retry = %d)' % (retry, ))
+            print('Retrying this request again (retry = %d)' % (retry,))
             new_retry = retry - 1
             json_result = finfindr_feature_extract_aid_helper(url, fpath, retry=new_retry)
 
@@ -165,7 +178,10 @@ def finfindr_feature_extract_aid_batch(ibs, aid_list, jobs=None, **kwargs):
             url_clone = urls_clone[0]
         else:
             url_clone = urls_clone[0]
-            args = (urls_clone, url_clone, )
+            args = (
+                urls_clone,
+                url_clone,
+            )
             print('[WARNING] Multiple BACKEND_URLS:\n\tFound: %r\n\tUsing: %r' % args)
         url_clone_list.append(url_clone)
 
@@ -183,7 +199,7 @@ def finfindr_feature_extract_aid_batch(ibs, aid_list, jobs=None, **kwargs):
         index += 1
         index %= len(url_clone_list)
 
-    args_list = list(zip(url_list, fpath_list, ))
+    args_list = list(zip(url_list, fpath_list,))
 
     json_result_gen = ut.generate2(
         finfindr_feature_extract_aid_helper,
@@ -203,11 +219,14 @@ class FinfindrFeatureConfig(dt.Config):  # NOQA
 
 
 @register_preproc_annot(
-    tablename='FinfindrFeature', parents=[ANNOTATION_TABLE],
-    colnames=['response'], coltypes=[dict],
+    tablename='FinfindrFeature',
+    parents=[ANNOTATION_TABLE],
+    colnames=['response'],
+    coltypes=[dict],
     configclass=FinfindrFeatureConfig,
     fname='finfindr',
-    chunksize=128)
+    chunksize=128,
+)
 def finfindr_feature_extract_aid_depc(depc, aid_list, config):
     # The doctest for ibeis_plugin_deepsense_identify_deepsense_ids also covers this func
     ibs = depc.controller
@@ -216,12 +235,12 @@ def finfindr_feature_extract_aid_depc(depc, aid_list, config):
         # Compute the features one at a time
         for aid in aid_list:
             response = ibs.finfindr_feature_extract_aid(aid)
-            yield (response, )
+            yield (response,)
     else:
         # Compute the features in small batches (for multi-container processing)
         response_list = ibs.finfindr_feature_extract_aid_batch(aid_list)
         for response in response_list:
-            yield (response, )
+            yield (response,)
 
 
 @register_ibs_method
@@ -254,7 +273,9 @@ def finfindr_feature_extract(ibs, annot_uuid, use_depc=True, config={}, **kwargs
     """
     aid = ibs.get_annot_aids_from_uuid([annot_uuid])[0]
     if use_depc:
-        response_list = ibs.depc_annot.get('FinfindrFeature', [aid], 'response', config=config)
+        response_list = ibs.depc_annot.get(
+            'FinfindrFeature', [aid], 'response', config=config
+        )
         response = response_list[0]
     else:
         response = ibs.finfindr_feature_extract_aid(aid)
@@ -262,7 +283,9 @@ def finfindr_feature_extract(ibs, annot_uuid, use_depc=True, config={}, **kwargs
 
 
 @register_ibs_method
-def ibeis_plugin_finfindr_identify(ibs, qaid_list, daid_list, use_depc=True, config={}, **kwargs):
+def ibeis_plugin_finfindr_identify(
+    ibs, qaid_list, daid_list, use_depc=True, config={}, **kwargs
+):
     r"""
     Matches qaid_list against daid_list using Finfindr
 
@@ -317,18 +340,21 @@ def ibeis_plugin_finfindr_identify(ibs, qaid_list, daid_list, use_depc=True, con
     num_qaid_clean = len(qaid_list_clean)
     num_daid_clean = len(daid_list_clean)
 
-    print('[finfindr] Retrieved features for %d qaids, %d daids' % (len(qaid_list), len(daid_list), ))
-    print('[finfindr] \tClean qaids: %d' % (num_qaid_clean, ))
-    print('[finfindr] \tClean daids: %d' % (num_daid_clean, ))
+    print(
+        '[finfindr] Retrieved features for %d qaids, %d daids'
+        % (len(qaid_list), len(daid_list),)
+    )
+    print('[finfindr] \tClean qaids: %d' % (num_qaid_clean,))
+    print('[finfindr] \tClean daids: %d' % (num_daid_clean,))
 
     if 0 in [num_qaid_clean, num_daid_clean]:
         response = None
     else:
         finfindr_arg_dict = {}
-        finfindr_arg_dict['queryHashData']     = q_feature_dict
+        finfindr_arg_dict['queryHashData'] = q_feature_dict
         finfindr_arg_dict['referenceHashData'] = d_feature_dict
-        finfindr_arg_dict['justIndex']         = 1
-        finfindr_arg_dict['batchSize']         = 1
+        finfindr_arg_dict['justIndex'] = 1
+        finfindr_arg_dict['batchSize'] = 1
 
         url = ibs.finfindr_ensure_backend(**kwargs)
         url = 'http://%s/ocpu/library/finFindR/R/distanceToRefParallel/json' % (url)
@@ -371,7 +397,9 @@ def finfindr_aid_feature_dict(ibs, aid_list, skip_failures=False):
         if aid not in GLOBAL_FEATURE_IN_MEMORY_CACHE:
             dirty_aid_list.append(aid)
 
-    dirty_hash_data_list = ibs.depc_annot.get('FinfindrFeature', dirty_aid_list, 'response')
+    dirty_hash_data_list = ibs.depc_annot.get(
+        'FinfindrFeature', dirty_aid_list, 'response'
+    )
     zipped = zip(dirty_aid_list, dirty_hash_data_list)
     for dirty_aid, dirty_hash_data in zipped:
         GLOBAL_FEATURE_IN_MEMORY_CACHE[dirty_aid] = dirty_hash_data
@@ -405,11 +433,14 @@ class FinfindrDistanceConfig(dt.Config):  # NOQA
 
 
 @register_preproc_annot(
-    tablename='FinfindrDistance', parents=[ANNOTATION_TABLE, ANNOTATION_TABLE],
-    colnames=['distance'], coltypes=[float],
+    tablename='FinfindrDistance',
+    parents=[ANNOTATION_TABLE, ANNOTATION_TABLE],
+    colnames=['distance'],
+    coltypes=[float],
     configclass=FinfindrDistanceConfig,
     fname='finfindr',
-    chunksize=None)
+    chunksize=None,
+)
 def finfindr_distance_depc(depc, qaid_list, daid_list, config):
     # qaid and aid lists are parallel
     # The doctest for ibeis_plugin_deepsense_identify_deepsense_ids also covers this func
@@ -420,17 +451,21 @@ def finfindr_distance_depc(depc, qaid_list, daid_list, config):
     daids = list(set(daid_list))
 
     qaids_clean, daids_clean, response = ibs.ibeis_plugin_finfindr_identify(qaids, daids)
-    distance_dict = ibs.finfindr_ibeis_distance_list_from_finfindr_result(qaids, daids, qaids_clean, daids_clean, response)
+    distance_dict = ibs.finfindr_ibeis_distance_list_from_finfindr_result(
+        qaids, daids, qaids_clean, daids_clean, response
+    )
 
     zipped = list(zip(qaid_list, daid_list))
     for qaid, daid in zipped:
         distance = distance_dict.get(daid, None)
-        yield (distance, )
+        yield (distance,)
 
 
 # assuming there was only one qaid, we don't need it for this step
 @register_ibs_method
-def finfindr_ibeis_distance_list_from_finfindr_result(ibs, qaid_list, daid_list, qaid_list_clean, daid_list_clean, response, query_no=0):
+def finfindr_ibeis_distance_list_from_finfindr_result(
+    ibs, qaid_list, daid_list, qaid_list_clean, daid_list_clean, response, query_no=0
+):
     r"""
     finFindR returns match results in a strange format. This func converts that
     to ibeis's familiar score list.
@@ -467,7 +502,7 @@ def finfindr_ibeis_distance_list_from_finfindr_result(ibs, qaid_list, daid_list,
 
         # Get values from the API response
         sortingIndex = response_dict['sortingIndex'][query_no]
-        distances    = response_dict[   'distances'][query_no]
+        distances = response_dict['distances'][query_no]
 
         key_list = sorted(list(sortingIndex.keys()))
         for key in key_list:
@@ -498,8 +533,8 @@ def finfindr_passport(ibs, aid, output=False, config={}, **kwargs):
     else:
         edge_coords = hash_data['coordinates']
 
-    image_path  = ibs.finfindr_annot_chip_fpath_from_aid(aid)
-    pil_image   = Image.open(image_path)
+    image_path = ibs.finfindr_annot_chip_fpath_from_aid(aid)
+    pil_image = Image.open(image_path)
 
     # we now modify pil_image and save it elsewhere when we're done
     draw = ImageDraw.Draw(pil_image)
@@ -507,7 +542,7 @@ def finfindr_passport(ibs, aid, output=False, config={}, **kwargs):
 
     if edge_coords is not None:
         edge_coord_tuples = [(coord[0], coord[1]) for coord in edge_coords]
-        #TODO: Add start and end dot to show directionality
+        # TODO: Add start and end dot to show directionality
         draw.line(xy=edge_coord_tuples, fill='yellow', width=3)
 
     if output:
@@ -517,8 +552,8 @@ def finfindr_passport(ibs, aid, output=False, config={}, **kwargs):
         output_filepath_fmtstr = join(output_path, 'passport-%s.png')
         # TODO: save to UUID not aid
         # output_filepath = output_filepath_fmtstr % (annot_uuid, )
-        output_filepath = output_filepath_fmtstr % (aid, )
-        print('Writing to %s' % (output_filepath, ))
+        output_filepath = output_filepath_fmtstr % (aid,)
+        print('Writing to %s' % (output_filepath,))
         pil_image.save(output_filepath)
 
     return pil_image
@@ -538,25 +573,33 @@ class FinfindrPassportConfig(dt.Config):  # NOQA
     _param_info_list = [
         # TODO: is dim_size necessary?
         ut.ParamInfo('dim_size', DIM_SIZE),
-        ut.ParamInfo('ext', '.jpg')
+        ut.ParamInfo('ext', '.jpg'),
     ]
 
 
 @register_preproc_annot(
-    tablename='FinfindrPassport', parents=[ANNOTATION_TABLE],
-    colnames=['image'], coltypes=[('extern', pil_image_load, pil_image_write)],
+    tablename='FinfindrPassport',
+    parents=[ANNOTATION_TABLE],
+    colnames=['image'],
+    coltypes=[('extern', pil_image_load, pil_image_write)],
     configclass=FinfindrPassportConfig,
     fname='finfindr',
-    chunksize=128)
+    chunksize=128,
+)
 def finfindr_passport_depc(depc, aid_list, config):
     # The doctest for ibeis_plugin_deepsense_identify_deepsense_ids also covers this func
     ibs = depc.controller
     for aid in aid_list:
         image = ibs.finfindr_passport(aid, config=config)
-        yield (image, )
+        yield (image,)
 
 
-@register_route('/api/plugin/finfindr/passport/src/<aid>/', methods=['GET'], __route_prefix_check__=False, __route_authenticate__=False)
+@register_route(
+    '/api/plugin/finfindr/passport/src/<aid>/',
+    methods=['GET'],
+    __route_prefix_check__=False,
+    __route_authenticate__=False,
+)
 def finfindr_passport_src(aid=None, ibs=None, **kwargs):
     from six.moves import cStringIO as StringIO
     from io import BytesIO
@@ -570,7 +613,9 @@ def finfindr_passport_src(aid=None, ibs=None, **kwargs):
 
     aid = int(aid)
     aid_list = [aid]
-    passport_paths = ibs.depc_annot.get('FinfindrPassport', aid_list, 'image', read_extern=False, ensure=True)
+    passport_paths = ibs.depc_annot.get(
+        'FinfindrPassport', aid_list, 'image', read_extern=False, ensure=True
+    )
     passport_path = passport_paths[0]
 
     # Load image
@@ -595,14 +640,14 @@ def finfindr_passport_src(aid=None, ibs=None, **kwargs):
 @register_ibs_method
 def finfindr_aid_list_from_annot_uuid_list(ibs, annot_uuid_list):
     # do we need to do the following check?
-    #ibs.web_check_uuids(qannot_uuid_list=annot_uuid_list)
+    # ibs.web_check_uuids(qannot_uuid_list=annot_uuid_list)
     # Ensure annotations
     annot_uuid_list = ensure_uuid_list(annot_uuid_list)
     aid_list = ibs.get_annot_aids_from_uuid(annot_uuid_list)
     return aid_list
 
 
-#TODO: does this work and is this the desired config for finfindr
+# TODO: does this work and is this the desired config for finfindr
 @register_ibs_method
 def finfindr_annot_chip_fpath(ibs, annot_uuid, **kwargs):
     aid = ibs.finfindr_aid_from_annot_uuid(annot_uuid)
@@ -646,12 +691,12 @@ def finfindr_init_testdb(ibs):
 # this func is called reflexively and identical to get_match_results in deepsense and curvrank
 def get_match_results(depc, qaid_list, daid_list, score_list, config):
     """ converts table results into format for ipython notebook """
-    #qaid_list, daid_list = request.get_parent_rowids()
-    #score_list = request.score_list
-    #config = request.config
+    # qaid_list, daid_list = request.get_parent_rowids()
+    # score_list = request.score_list
+    # config = request.config
 
     unique_qaids, groupxs = ut.group_indices(qaid_list)
-    #grouped_qaids_list = ut.apply_grouping(qaid_list, groupxs)
+    # grouped_qaids_list = ut.apply_grouping(qaid_list, groupxs)
     grouped_daids = ut.apply_grouping(daid_list, groupxs)
     grouped_scores = ut.apply_grouping(score_list, groupxs)
 
@@ -668,7 +713,7 @@ def get_match_results(depc, qaid_list, daid_list, score_list, config):
         daid_list_ = np.array(daids)
         dnid_list_ = np.array(dnids)
 
-        is_valid = (daid_list_ != qaid)
+        is_valid = daid_list_ != qaid
         daid_list_ = daid_list_.compress(is_valid)
         dnid_list_ = dnid_list_.compress(is_valid)
         annot_scores = annot_scores.compress(is_valid)
@@ -701,6 +746,7 @@ class FinfindrConfig(dt.Config):  # NOQA
         >>> print(result)
         Finfindr(dim_size=2000)
     """
+
     def get_param_info_list(self):
         return [
             ut.ParamInfo('dim_size', DIM_SIZE),
@@ -715,7 +761,14 @@ class FinfindrRequest(dt.base.VsOneSimilarityRequest):
     def get_fmatch_overlayed_chip(request, aid_list, config=None):
         depc = request.depc
         ibs = depc.controller
-        passport_paths = ibs.depc_annot.get('FinfindrPassport', aid_list, 'image', config=config, read_extern=False, ensure=True)
+        passport_paths = ibs.depc_annot.get(
+            'FinfindrPassport',
+            aid_list,
+            'image',
+            config=config,
+            read_extern=False,
+            ensure=True,
+        )
         passports = list(map(vt.imread, passport_paths))
         return passports
 
@@ -730,8 +783,7 @@ class FinfindrRequest(dt.base.VsOneSimilarityRequest):
         score_list = ut.take_column(result_list, 0)
         depc = request.depc
         config = request.config
-        cm_list = list(get_match_results(depc, qaid_list, daid_list,
-                                         score_list, config))
+        cm_list = list(get_match_results(depc, qaid_list, daid_list, score_list, config))
         return cm_list
 
     def execute(request, *args, **kwargs):
@@ -740,21 +792,21 @@ class FinfindrRequest(dt.base.VsOneSimilarityRequest):
         qaids = kwargs.pop('qaids', None)
         # TODO: is this filtering necessary?
         if qaids is not None:
-            result_list = [
-                result for result in result_list
-                if result.qaid in qaids
-            ]
+            result_list = [result for result in result_list if result.qaid in qaids]
         return result_list
 
 
 @register_preproc_annot(
-    tablename='Finfindr', parents=[ANNOTATION_TABLE, ANNOTATION_TABLE],
-    colnames=['score'], coltypes=[float],
+    tablename='Finfindr',
+    parents=[ANNOTATION_TABLE, ANNOTATION_TABLE],
+    colnames=['score'],
+    coltypes=[float],
     configclass=FinfindrConfig,
     requestclass=FinfindrRequest,
     fname='finfindr',
     rm_extern_on_delete=True,
-    chunksize=None)
+    chunksize=None,
+)
 def ibeis_plugin_finfindr(depc, qaid_list, daid_list, config):
     r"""
     Matches qaid_list against daid_list using Finfindr
@@ -811,13 +863,21 @@ def finfindr_distance_to_match_score(distance, max_distance_scalar=500.0):
 def finfindr_double_check(ibs, qaid_list, daid_list):
     qaids = list(set(qaid_list))
     daids = list(set(daid_list))
-    qaids_clean, daids_clean, response = ibs.ibeis_plugin_finfindr_identify(qaids, daids, use_depc=False)
-    sorted_scores = ibs.finfindr_ibeis_distance_list_from_finfindr_result(qaids, daids, qaids_clean, daids_clean, response)
+    qaids_clean, daids_clean, response = ibs.ibeis_plugin_finfindr_identify(
+        qaids, daids, use_depc=False
+    )
+    sorted_scores = ibs.finfindr_ibeis_distance_list_from_finfindr_result(
+        qaids, daids, qaids_clean, daids_clean, response
+    )
     sorted_scores_ = []
     for i in range(len(daid_list)):
         daids_ = [daid_list[i]]
-        qaids_clean_, daids_clean_, response_ = ibs.ibeis_plugin_finfindr_identify(qaids, daids_, use_depc=False)
-        score = ibs.finfindr_ibeis_distance_list_from_finfindr_result(qaids, daids_, qaids_clean_, daids_clean_, response_)[0]
+        qaids_clean_, daids_clean_, response_ = ibs.ibeis_plugin_finfindr_identify(
+            qaids, daids_, use_depc=False
+        )
+        score = ibs.finfindr_ibeis_distance_list_from_finfindr_result(
+            qaids, daids_, qaids_clean_, daids_clean_, response_
+        )[0]
         sorted_scores_.append(score)
     return sorted_scores, sorted_scores_
 
@@ -826,13 +886,21 @@ def finfindr_double_check(ibs, qaid_list, daid_list):
 def finfindr_double_check_random_order(ibs, qaid_list, daid_list):
     qaids = list(set(qaid_list))
     daids = list(set(daid_list))
-    qaids_clean, daids_clean, response = ibs.ibeis_plugin_finfindr_identify(qaids, daids, use_depc=False)
-    sorted_scores = ibs.finfindr_ibeis_distance_list_from_finfindr_result(qaids, daids, qaids_clean, daids_clean, response)
+    qaids_clean, daids_clean, response = ibs.ibeis_plugin_finfindr_identify(
+        qaids, daids, use_depc=False
+    )
+    sorted_scores = ibs.finfindr_ibeis_distance_list_from_finfindr_result(
+        qaids, daids, qaids_clean, daids_clean, response
+    )
     sorted_scores_ = []
     for i in range(len(daid_list)):
         daids_ = [daid_list[i]]
-        qaids_clean_, daids_clean_, response_ = ibs.ibeis_plugin_finfindr_identify(qaids, daids_, use_depc=False)
-        score = ibs.finfindr_ibeis_distance_list_from_finfindr_result(qaids, daids_, qaids_clean_, daids_clean_, response_)[0]
+        qaids_clean_, daids_clean_, response_ = ibs.ibeis_plugin_finfindr_identify(
+            qaids, daids_, use_depc=False
+        )
+        score = ibs.finfindr_ibeis_distance_list_from_finfindr_result(
+            qaids, daids_, qaids_clean_, daids_clean_, response_
+        )[0]
         sorted_scores_.append(score)
     return sorted_scores, sorted_scores_
 
@@ -843,6 +911,8 @@ if __name__ == '__main__':
         python -m ibeis_finfindr._plugin --allexamples
     """
     import multiprocessing
+
     multiprocessing.freeze_support()  # for win32
     import utool as ut  # NOQA
+
     ut.doctest_funcs()
