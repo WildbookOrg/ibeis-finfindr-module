@@ -104,6 +104,14 @@ full_version = '%%(version)s.%%(git_revision)s' %% {
 
 def do_setup():
     write_version_py()
+
+    install_requires = parse_requirements('requirements/runtime.txt')
+    extras_require = {
+        'all': parse_requirements('requirements.txt'),
+        'runtime': parse_requirements('requirements/runtime.txt'),
+        'build': parse_requirements('requirements/build.txt'),
+    }
+
     setup(
         name=NAME,
         version=VERSION,
@@ -117,6 +125,8 @@ def do_setup():
         platforms=PLATFORMS,
         packages=PACKAGES,
         keywords=CLASSIFIERS.replace('\n', ' ').strip(),
+        install_requires=install_requires,
+        extras_require=extras_require,
     )
 
 
