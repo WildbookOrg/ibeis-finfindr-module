@@ -6,7 +6,7 @@ An example of how to design and use a Python module as a plugin in the IBEIS IA 
 Install this plugin as a Python module using
 
 ```bash
-cd ~/code/ibeis_finfindr/
+cd ~/code/wbia_finfindr/
 python setup.py develop
 ```
 
@@ -14,7 +14,7 @@ python setup.py develop
 
 With the plugin installed, register the module name with the `IBEISControl.py` file
 in the ibeis repository located at `ibeis/ibeis/control/IBEISControl.py`.  Register
-the module by adding the string (for example, `ibeis_finfindr`) to the
+the module by adding the string (for example, `wbia_finfindr`) to the
 list `AUTOLOAD_PLUGIN_MODNAMES`.
 
 Then, load the web-based IBEIS IA service and open the URL that is registered with
@@ -27,10 +27,10 @@ python dev.py --web
 
 Navigate in a browser to http://127.0.0.1:5000/api/plugin/example/helloworld/ where
 this returns a formatted JSON response, including the serialized returned value
-from the `ibeis_finfindr_hello_world()` function
+from the `wbia_finfindr_hello_world()` function
 
 ```
-{"status": {"cache": -1, "message": "", "code": 200, "success": true}, "response": "[ibeis_finfindr] hello world with IBEIS controller <IBEISController(testdb1) at 0x11e776e90>"}
+{"status": {"cache": -1, "message": "", "code": 200, "success": true}, "response": "[wbia_finfindr] hello world with IBEIS controller <IBEISController(testdb1) at 0x11e776e90>"}
 ```
 
 # Python API
@@ -50,10 +50,10 @@ Type "help", "copyright", "credits" or "license" for more information.
 [depc] Initialize IMAGES depcache in u'/Datasets/testdb1/_ibsdb/_ibeis_cache'
 [ibs.__init__] END new IBEISController
 
->>> ibs.ibeis_finfindr_hello_world()
-'[ibeis_finfindr] hello world with IBEIS controller <IBEISController(testdb1) at 0x10b24c9d0>'
+>>> ibs.wbia_finfindr_hello_world()
+'[wbia_finfindr] hello world with IBEIS controller <IBEISController(testdb1) at 0x10b24c9d0>'
 ```
 
 The function from the plugin is automatically added as a method to the ibs object
-as `ibs.ibeis_finfindr_hello_world()`, which is registered using the
+as `ibs.wbia_finfindr_hello_world()`, which is registered using the
 `@register_ibs_method decorator`.
