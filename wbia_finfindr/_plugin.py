@@ -250,13 +250,13 @@ def finfindr_feature_extract(ibs, annot_uuid, use_depc=True, config={}, **kwargs
     Gets the finfindr feature representation of an annot
 
     CommandLine:
-        python -m ibeis_finfindr._plugin --test-finfindr_feature_extract
-        python -m ibeis_finfindr._plugin --test-finfindr_feature_extract:0
+        python -m wbia_finfindr._plugin --test-finfindr_feature_extract
+        python -m wbia_finfindr._plugin --test-finfindr_feature_extract:0
 
     Example0:
         >>> # ENABLE_DOCTEST
         >>> import utool as ut
-        >>> import ibeis_finfindr
+        >>> import wbia_finfindr
         >>> import ibeis
         >>> from ibeis.init import sysres
         >>> # The curvrank testdb also uses dolphin dorsals
@@ -290,14 +290,14 @@ def ibeis_plugin_finfindr_identify(
     Matches qaid_list against daid_list using Finfindr
 
     CommandLine:
-        python -m ibeis_finfindr._plugin --test-ibeis_plugin_finfindr_identify
-        python -m ibeis_finfindr._plugin --test-ibeis_plugin_finfindr_identify:0
+        python -m wbia_finfindr._plugin --test-ibeis_plugin_finfindr_identify
+        python -m wbia_finfindr._plugin --test-ibeis_plugin_finfindr_identify:0
 
     Example0:
         >>> # ENABLE_DOCTEST
         >>> import utool as ut
-        >>> import ibeis_finfindr
-        >>> from ibeis_finfindr._plugin import FinfindrRequest
+        >>> import wbia_finfindr
+        >>> from wbia_finfindr._plugin import FinfindrRequest
         >>> import ibeis
         >>> from ibeis.init import sysres
         >>> # The curvrank testdb also uses dolphin dorsals
@@ -372,14 +372,14 @@ def finfindr_aid_feature_dict(ibs, aid_list, skip_failures=False):
     takes as input for its distance func
 
     CommandLine:
-        python -m ibeis_finfindr._plugin --test-finfindr_aid_feature_dict
-        python -m ibeis_finfindr._plugin --test-finfindr_aid_feature_dict:0
+        python -m wbia_finfindr._plugin --test-finfindr_aid_feature_dict
+        python -m wbia_finfindr._plugin --test-finfindr_aid_feature_dict:0
 
     Example0:
         >>> # ENABLE_DOCTEST
         >>> import utool as ut
-        >>> import ibeis_finfindr
-        >>> from ibeis_finfindr._plugin import FinfindrRequest
+        >>> import wbia_finfindr
+        >>> from wbia_finfindr._plugin import FinfindrRequest
         >>> import ibeis
         >>> from ibeis.init import sysres
         >>> # The curvrank testdb also uses dolphin dorsals
@@ -475,13 +475,13 @@ def finfindr_ibeis_distance_list_from_finfindr_result(
         response: the response from finFindR; output of ibeis_plugin_finfindr_identify
 
     CommandLine:
-        python -m ibeis_finfindr._plugin --test-finfindr_ibeis_distance_list_from_finfindr_result
-        python -m ibeis_finfindr._plugin --test-finfindr_ibeis_distance_list_from_finfindr_result:0
+        python -m wbia_finfindr._plugin --test-finfindr_ibeis_distance_list_from_finfindr_result
+        python -m wbia_finfindr._plugin --test-finfindr_ibeis_distance_list_from_finfindr_result:0
 
     Example0:
         >>> # ENABLE_DOCTEST
         >>> import utool as ut
-        >>> import ibeis_finfindr
+        >>> import wbia_finfindr
         >>> import ibeis
         >>> from ibeis.init import sysres
         >>> # The curvrank testdb also uses dolphin dorsals
@@ -740,7 +740,7 @@ class FinfindrConfig(dt.Config):  # NOQA
 
     Example:
         >>> # ENABLE_DOCTEST
-        >>> from ibeis_finfindr._plugin import *  # NOQA
+        >>> from wbia_finfindr._plugin import *  # NOQA
         >>> config = FinfindrConfig()
         >>> result = config.get_cfgstr()
         >>> print(result)
@@ -812,14 +812,14 @@ def ibeis_plugin_finfindr(depc, qaid_list, daid_list, config):
     Matches qaid_list against daid_list using Finfindr
 
     CommandLine:
-        python -m ibeis_finfindr._plugin --exec-ibeis_plugin_finfindr
-        python -m ibeis_finfindr._plugin --exec-ibeis_plugin_finfindr:0
+        python -m wbia_finfindr._plugin --exec-ibeis_plugin_finfindr
+        python -m wbia_finfindr._plugin --exec-ibeis_plugin_finfindr:0
 
     Example0:
         >>> # ENABLE_DOCTEST
         >>> import utool as ut
-        >>> import ibeis_finfindr
-        >>> from ibeis_finfindr._plugin import FinfindrRequest
+        >>> import wbia_finfindr
+        >>> from wbia_finfindr._plugin import FinfindrRequest
         >>> import ibeis
         >>> from ibeis.init import sysres
         >>> # The curvrank testdb also uses dolphin dorsals
@@ -908,7 +908,7 @@ def finfindr_double_check_random_order(ibs, qaid_list, daid_list):
 if __name__ == '__main__':
     r"""
     CommandLine:
-        python -m ibeis_finfindr._plugin --allexamples
+        python -m wbia_finfindr._plugin --allexamples
     """
     import multiprocessing
 
