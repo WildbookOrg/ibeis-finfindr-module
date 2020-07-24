@@ -1,10 +1,10 @@
 # -*- coding: utf-8 -*-
 from __future__ import absolute_import, division, print_function
 from os.path import abspath, exists, join, dirname, split
-import ibeis
-from ibeis.control import controller_inject, docker_control
-from ibeis.constants import ANNOTATION_TABLE
-from ibeis.web.apis_engine import ensure_uuid_list
+import wbia
+from wbia.control import controller_inject, docker_control
+from wbia.constants import ANNOTATION_TABLE
+from wbia.web.apis_engine import ensure_uuid_list
 import numpy as np
 import utool as ut
 import dtool as dt
@@ -41,7 +41,7 @@ register_route = controller_inject.get_ibeis_flask_route(__name__)
 
 
 # TODO: abstract this out to a func that takes endpoints as an arg and lives in the docker controller
-def _ibeis_plugin_finfindr_check_container(url):
+def _wbia_plugin_finfindr_check_container(url):
     endpoints = {
         'ocpu/library/finFindR/R/hashFromImage/json': ['POST'],
         'ocpu/library/finFindR/R/distanceToRefParallel/json': ['POST'],
@@ -92,7 +92,7 @@ docker_control.docker_register_config(
     'flukebook_finfindr',
     'wildme.azurecr.io/ibeis/finfindr:1.8.0',
     run_args={'_internal_port': 8004, '_external_suggested_port': 8004},
-    container_check_func=_ibeis_plugin_finfindr_check_container,
+    container_check_func=_wbia_plugin_finfindr_check_container,
 )
 
 
@@ -228,7 +228,7 @@ class FinfindrFeatureConfig(dt.Config):  # NOQA
     chunksize=128,
 )
 def finfindr_feature_extract_aid_depc(depc, aid_list, config):
-    # The doctest for ibeis_plugin_deepsense_identify_deepsense_ids also covers this func
+    # The doctest for wbia_plugin_deepsense_identify_deepsense_ids also covers this func
     ibs = depc.controller
     OLD = True
     if OLD:
@@ -257,11 +257,11 @@ def finfindr_feature_extract(ibs, annot_uuid, use_depc=True, config={}, **kwargs
         >>> # ENABLE_DOCTEST
         >>> import utool as ut
         >>> import wbia_finfindr
-        >>> import ibeis
-        >>> from ibeis.init import sysres
+        >>> import wbia
+        >>> from wbia.init import sysres
         >>> # The curvrank testdb also uses dolphin dorsals
         >>> dbdir = sysres.ensure_testdb_curvrank()
-        >>> ibs = ibeis.opendb(dbdir=dbdir)
+        >>> ibs = wbia.opendb(dbdir=dbdir)
         >>> aid_list = ibs.get_image_aids(1)
         >>> annot_uuid = ibs.get_annot_uuids(aid_list)[0]
         >>> feature = ibs.finfindr_feature_extract(annot_uuid, use_depc=False)
@@ -283,30 +283,30 @@ def finfindr_feature_extract(ibs, annot_uuid, use_depc=True, config={}, **kwargs
 
 
 @register_ibs_method
-def ibeis_plugin_finfindr_identify(
+def wbia_plugin_finfindr_identify(
     ibs, qaid_list, daid_list, use_depc=True, config={}, **kwargs
 ):
     r"""
     Matches qaid_list against daid_list using Finfindr
 
     CommandLine:
-        python -m wbia_finfindr._plugin --test-ibeis_plugin_finfindr_identify
-        python -m wbia_finfindr._plugin --test-ibeis_plugin_finfindr_identify:0
+        python -m wbia_finfindr._plugin --test-wbia_plugin_finfindr_identify
+        python -m wbia_finfindr._plugin --test-wbia_plugin_finfindr_identify:0
 
     Example0:
         >>> # ENABLE_DOCTEST
         >>> import utool as ut
         >>> import wbia_finfindr
         >>> from wbia_finfindr._plugin import FinfindrRequest
-        >>> import ibeis
-        >>> from ibeis.init import sysres
+        >>> import wbia
+        >>> from wbia.init import sysres
         >>> # The curvrank testdb also uses dolphin dorsals
         >>> dbdir = sysres.ensure_testdb_curvrank()
-        >>> ibs = ibeis.opendb(dbdir=dbdir)
+        >>> ibs = wbia.opendb(dbdir=dbdir)
         >>> depc = ibs.depc_annot
         >>> qaid = [1]
         >>> daid_list = [2, 3, 4, 5]
-        >>> qaid_list_clean, daid_list_clean, response = ibs.ibeis_plugin_finfindr_identify(qaid, daid_list)
+        >>> qaid_list_clean, daid_list_clean, response = ibs.wbia_plugin_finfindr_identify(qaid, daid_list)
         >>> assert response.status_code == 201
         >>> result = response.text
         {
@@ -380,11 +380,11 @@ def finfindr_aid_feature_dict(ibs, aid_list, skip_failures=False):
         >>> import utool as ut
         >>> import wbia_finfindr
         >>> from wbia_finfindr._plugin import FinfindrRequest
-        >>> import ibeis
-        >>> from ibeis.init import sysres
+        >>> import wbia
+        >>> from wbia.init import sysres
         >>> # The curvrank testdb also uses dolphin dorsals
         >>> dbdir = sysres.ensure_testdb_curvrank()
-        >>> ibs = ibeis.opendb(dbdir=dbdir)
+        >>> ibs = wbia.opendb(dbdir=dbdir)
         >>> depc = ibs.depc_annot
         >>> aid_list = [1, 2]
         >>> result = ibs.finfindr_aid_feature_dict(aid_list)
@@ -443,14 +443,14 @@ class FinfindrDistanceConfig(dt.Config):  # NOQA
 )
 def finfindr_distance_depc(depc, qaid_list, daid_list, config):
     # qaid and aid lists are parallel
-    # The doctest for ibeis_plugin_deepsense_identify_deepsense_ids also covers this func
+    # The doctest for wbia_plugin_deepsense_identify_deepsense_ids also covers this func
     ibs = depc.controller
 
     qaids = list(set(qaid_list))
     assert len(qaids) == 1
     daids = list(set(daid_list))
 
-    qaids_clean, daids_clean, response = ibs.ibeis_plugin_finfindr_identify(qaids, daids)
+    qaids_clean, daids_clean, response = ibs.wbia_plugin_finfindr_identify(qaids, daids)
     distance_dict = ibs.finfindr_ibeis_distance_list_from_finfindr_result(
         qaids, daids, qaids_clean, daids_clean, response
     )
@@ -472,7 +472,7 @@ def finfindr_ibeis_distance_list_from_finfindr_result(
 
     Args:
         daid_list: list of daids originally sent to finFindR
-        response: the response from finFindR; output of ibeis_plugin_finfindr_identify
+        response: the response from finFindR; output of wbia_plugin_finfindr_identify
 
     CommandLine:
         python -m wbia_finfindr._plugin --test-finfindr_ibeis_distance_list_from_finfindr_result
@@ -482,15 +482,15 @@ def finfindr_ibeis_distance_list_from_finfindr_result(
         >>> # ENABLE_DOCTEST
         >>> import utool as ut
         >>> import wbia_finfindr
-        >>> import ibeis
-        >>> from ibeis.init import sysres
+        >>> import wbia
+        >>> from wbia.init import sysres
         >>> # The curvrank testdb also uses dolphin dorsals
         >>> dbdir = sysres.ensure_testdb_curvrank()
-        >>> ibs = ibeis.opendb(dbdir=dbdir)
+        >>> ibs = wbia.opendb(dbdir=dbdir)
         >>> depc = ibs.depc_annot
         >>> qaid = [1]
         >>> daid_list = [2, 3, 4, 5]
-        >>> qaid_list_clean, daid_list_clean, id_response = ibs.ibeis_plugin_finfindr_identify(qaid, daid_list)
+        >>> qaid_list_clean, daid_list_clean, id_response = ibs.wbia_plugin_finfindr_identify(qaid, daid_list)
         >>> result = ibs.finfindr_ibeis_distance_list_from_finfindr_result(qaid, daid_list, qaid_list_clean, daid_list_clean, id_response)
         [217.5667, 532.0134, 725.5806, 651.7316]
     """
@@ -587,7 +587,7 @@ class FinfindrPassportConfig(dt.Config):  # NOQA
     chunksize=128,
 )
 def finfindr_passport_depc(depc, aid_list, config):
-    # The doctest for ibeis_plugin_deepsense_identify_deepsense_ids also covers this func
+    # The doctest for wbia_plugin_deepsense_identify_deepsense_ids also covers this func
     ibs = depc.controller
     for aid in aid_list:
         image = ibs.finfindr_passport(aid, config=config)
@@ -605,7 +605,7 @@ def finfindr_passport_src(aid=None, ibs=None, **kwargs):
     from io import BytesIO
     from PIL import Image  # NOQA
     from flask import current_app, send_file
-    from ibeis.web import appfuncs as appf
+    from wbia.web import appfuncs as appf
     import six
 
     if ibs is None:
@@ -719,7 +719,7 @@ def get_match_results(depc, qaid_list, daid_list, score_list, config):
         annot_scores = annot_scores.compress(is_valid)
 
         # Hacked in version of creating an annot match object
-        match_result = ibeis.AnnotMatch()
+        match_result = wbia.AnnotMatch()
         match_result.qaid = qaid
         match_result.qnid = qnid
         match_result.daid_list = daid_list_
@@ -807,24 +807,24 @@ class FinfindrRequest(dt.base.VsOneSimilarityRequest):
     rm_extern_on_delete=True,
     chunksize=None,
 )
-def ibeis_plugin_finfindr(depc, qaid_list, daid_list, config):
+def wbia_plugin_finfindr(depc, qaid_list, daid_list, config):
     r"""
     Matches qaid_list against daid_list using Finfindr
 
     CommandLine:
-        python -m wbia_finfindr._plugin --exec-ibeis_plugin_finfindr
-        python -m wbia_finfindr._plugin --exec-ibeis_plugin_finfindr:0
+        python -m wbia_finfindr._plugin --exec-wbia_plugin_finfindr
+        python -m wbia_finfindr._plugin --exec-wbia_plugin_finfindr:0
 
     Example0:
         >>> # ENABLE_DOCTEST
         >>> import utool as ut
         >>> import wbia_finfindr
         >>> from wbia_finfindr._plugin import FinfindrRequest
-        >>> import ibeis
-        >>> from ibeis.init import sysres
+        >>> import wbia
+        >>> from wbia.init import sysres
         >>> # The curvrank testdb also uses dolphin dorsals
         >>> dbdir = sysres.ensure_testdb_curvrank()
-        >>> ibs = ibeis.opendb(dbdir=dbdir)
+        >>> ibs = wbia.opendb(dbdir=dbdir)
         >>> depc = ibs.depc_annot
         >>> daid_list = [2, 3, 4, 5]
         >>> qaid = [1]
@@ -863,7 +863,7 @@ def finfindr_distance_to_match_score(distance, max_distance_scalar=500.0):
 def finfindr_double_check(ibs, qaid_list, daid_list):
     qaids = list(set(qaid_list))
     daids = list(set(daid_list))
-    qaids_clean, daids_clean, response = ibs.ibeis_plugin_finfindr_identify(
+    qaids_clean, daids_clean, response = ibs.wbia_plugin_finfindr_identify(
         qaids, daids, use_depc=False
     )
     sorted_scores = ibs.finfindr_ibeis_distance_list_from_finfindr_result(
@@ -872,7 +872,7 @@ def finfindr_double_check(ibs, qaid_list, daid_list):
     sorted_scores_ = []
     for i in range(len(daid_list)):
         daids_ = [daid_list[i]]
-        qaids_clean_, daids_clean_, response_ = ibs.ibeis_plugin_finfindr_identify(
+        qaids_clean_, daids_clean_, response_ = ibs.wbia_plugin_finfindr_identify(
             qaids, daids_, use_depc=False
         )
         score = ibs.finfindr_ibeis_distance_list_from_finfindr_result(
@@ -886,7 +886,7 @@ def finfindr_double_check(ibs, qaid_list, daid_list):
 def finfindr_double_check_random_order(ibs, qaid_list, daid_list):
     qaids = list(set(qaid_list))
     daids = list(set(daid_list))
-    qaids_clean, daids_clean, response = ibs.ibeis_plugin_finfindr_identify(
+    qaids_clean, daids_clean, response = ibs.wbia_plugin_finfindr_identify(
         qaids, daids, use_depc=False
     )
     sorted_scores = ibs.finfindr_ibeis_distance_list_from_finfindr_result(
@@ -895,7 +895,7 @@ def finfindr_double_check_random_order(ibs, qaid_list, daid_list):
     sorted_scores_ = []
     for i in range(len(daid_list)):
         daids_ = [daid_list[i]]
-        qaids_clean_, daids_clean_, response_ = ibs.ibeis_plugin_finfindr_identify(
+        qaids_clean_, daids_clean_, response_ = ibs.wbia_plugin_finfindr_identify(
             qaids, daids_, use_depc=False
         )
         score = ibs.finfindr_ibeis_distance_list_from_finfindr_result(

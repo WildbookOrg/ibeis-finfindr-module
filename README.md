@@ -41,8 +41,8 @@ python
 Python 2.7.14 (default, Sep 27 2017, 12:15:00)
 [GCC 4.2.1 Compatible Apple LLVM 9.0.0 (clang-900.0.37)] on darwin
 Type "help", "copyright", "credits" or "license" for more information.
->>> import ibeis
->>> ibs = ibeis.opendb()
+>>> import wbia
+>>> ibs = wbia.opendb()
 
 [ibs.__init__] new IBEISController
 [ibs._init_dirs] ibs.dbdir = u'/Datasets/testdb1'
