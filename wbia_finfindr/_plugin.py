@@ -30,14 +30,14 @@ DIM_SIZE = 2000
 GLOBAL_FEATURE_IN_MEMORY_CACHE = {}
 
 
-# Section: ibeis binds
+# Section: wbia binds
 (print, rrr, profile) = ut.inject2(__name__)
 _, register_ibs_method = controller_inject.make_ibs_register_decorator(__name__)
-register_api = controller_inject.get_ibeis_flask_api(__name__)
+register_api = controller_inject.get_wbia_flask_api(__name__)
 register_preproc_annot = controller_inject.register_preprocs['annot']
 
 
-register_route = controller_inject.get_ibeis_flask_route(__name__)
+register_route = controller_inject.get_wbia_flask_route(__name__)
 
 
 # TODO: abstract this out to a func that takes endpoints as an arg and lives in the docker controller
@@ -76,7 +76,7 @@ def _wbia_plugin_finfindr_check_container(url):
         if not flag:
             args = (endpoint,)
             print(
-                '[ibeis_deepsense - FAILED CONTAINER ENSURE CHECK] Endpoint %r failed the check'
+                '[wbia_deepsense - FAILED CONTAINER ENSURE CHECK] Endpoint %r failed the check'
                 % args
             )
             print('\tRequired Methods:  %r' % (required_methods,))
@@ -98,7 +98,7 @@ docker_control.docker_register_config(
 
 @register_ibs_method
 def finfindr_ensure_backend(ibs, container_name='flukebook_finfindr', clone=None):
-    # below code doesn't work bc of ibeis-scope issue
+    # below code doesn't work bc of wbia-scope issue
     global BACKEND_URL
     if BACKEND_URL is None:
         BACKEND_URLS = ibs.docker_ensure(container_name, clone=clone)
@@ -451,7 +451,7 @@ def finfindr_distance_depc(depc, qaid_list, daid_list, config):
     daids = list(set(daid_list))
 
     qaids_clean, daids_clean, response = ibs.wbia_plugin_finfindr_identify(qaids, daids)
-    distance_dict = ibs.finfindr_ibeis_distance_list_from_finfindr_result(
+    distance_dict = ibs.finfindr_wbia_distance_list_from_finfindr_result(
         qaids, daids, qaids_clean, daids_clean, response
     )
 
@@ -463,20 +463,20 @@ def finfindr_distance_depc(depc, qaid_list, daid_list, config):
 
 # assuming there was only one qaid, we don't need it for this step
 @register_ibs_method
-def finfindr_ibeis_distance_list_from_finfindr_result(
+def finfindr_wbia_distance_list_from_finfindr_result(
     ibs, qaid_list, daid_list, qaid_list_clean, daid_list_clean, response, query_no=0
 ):
     r"""
     finFindR returns match results in a strange format. This func converts that
-    to ibeis's familiar score list.
+    to wbia's familiar score list.
 
     Args:
         daid_list: list of daids originally sent to finFindR
         response: the response from finFindR; output of wbia_plugin_finfindr_identify
 
     CommandLine:
-        python -m wbia_finfindr._plugin --test-finfindr_ibeis_distance_list_from_finfindr_result
-        python -m wbia_finfindr._plugin --test-finfindr_ibeis_distance_list_from_finfindr_result:0
+        python -m wbia_finfindr._plugin --test-finfindr_wbia_distance_list_from_finfindr_result
+        python -m wbia_finfindr._plugin --test-finfindr_wbia_distance_list_from_finfindr_result:0
 
     Example0:
         >>> # ENABLE_DOCTEST
@@ -491,7 +491,7 @@ def finfindr_ibeis_distance_list_from_finfindr_result(
         >>> qaid = [1]
         >>> daid_list = [2, 3, 4, 5]
         >>> qaid_list_clean, daid_list_clean, id_response = ibs.wbia_plugin_finfindr_identify(qaid, daid_list)
-        >>> result = ibs.finfindr_ibeis_distance_list_from_finfindr_result(qaid, daid_list, qaid_list_clean, daid_list_clean, id_response)
+        >>> result = ibs.finfindr_wbia_distance_list_from_finfindr_result(qaid, daid_list, qaid_list_clean, daid_list_clean, id_response)
         [217.5667, 532.0134, 725.5806, 651.7316]
     """
     distance_dict = {}
@@ -559,7 +559,7 @@ def finfindr_passport(ibs, aid, output=False, config={}, **kwargs):
     return pil_image
 
 
-# TODO: ask JP if it's kosher to duplicate this func also defined in ibeis-deepsense-module
+# TODO: ask JP if it's kosher to duplicate this func also defined in wbia-deepsense-module
 def pil_image_load(absolute_path):
     pil_img = Image.open(absolute_path)
     return pil_img
@@ -636,7 +636,7 @@ def finfindr_passport_src(aid=None, ibs=None, **kwargs):
     return send_file(img_io, mimetype='image/jpeg')
 
 
-# TODO: move this into the ibeis package. Literally copy-pasted from deepsense right now
+# TODO: move this into the wbia package. Literally copy-pasted from deepsense right now
 @register_ibs_method
 def finfindr_aid_list_from_annot_uuid_list(ibs, annot_uuid_list):
     # do we need to do the following check?
@@ -676,7 +676,7 @@ def finfindr_aid_from_annot_uuid(ibs, annot_uuid):
 
 @register_ibs_method
 def finfindr_init_testdb(ibs):
-    image_path = abspath('/home/wildme/code/ibeis-finfindr-module/example-images')
+    image_path = abspath('/home/wildme/code/wbia-finfindr-module/example-images')
     assert exists(image_path)
     gid_list = ibs.import_folder(image_path, ensure_loadable=False, ensure_exif=False)
     uri_list = ibs.get_image_uris_original(gid_list)
@@ -736,7 +736,7 @@ def get_match_results(depc, qaid_list, daid_list, score_list, config):
 class FinfindrConfig(dt.Config):  # NOQA
     """
     CommandLine:
-        python -m ibeis_deepsense._plugin --test-FinfindrConfig
+        python -m wbia_deepsense._plugin --test-FinfindrConfig
 
     Example:
         >>> # ENABLE_DOCTEST
@@ -866,7 +866,7 @@ def finfindr_double_check(ibs, qaid_list, daid_list):
     qaids_clean, daids_clean, response = ibs.wbia_plugin_finfindr_identify(
         qaids, daids, use_depc=False
     )
-    sorted_scores = ibs.finfindr_ibeis_distance_list_from_finfindr_result(
+    sorted_scores = ibs.finfindr_wbia_distance_list_from_finfindr_result(
         qaids, daids, qaids_clean, daids_clean, response
     )
     sorted_scores_ = []
@@ -875,7 +875,7 @@ def finfindr_double_check(ibs, qaid_list, daid_list):
         qaids_clean_, daids_clean_, response_ = ibs.wbia_plugin_finfindr_identify(
             qaids, daids_, use_depc=False
         )
-        score = ibs.finfindr_ibeis_distance_list_from_finfindr_result(
+        score = ibs.finfindr_wbia_distance_list_from_finfindr_result(
             qaids, daids_, qaids_clean_, daids_clean_, response_
         )[0]
         sorted_scores_.append(score)
@@ -889,7 +889,7 @@ def finfindr_double_check_random_order(ibs, qaid_list, daid_list):
     qaids_clean, daids_clean, response = ibs.wbia_plugin_finfindr_identify(
         qaids, daids, use_depc=False
     )
-    sorted_scores = ibs.finfindr_ibeis_distance_list_from_finfindr_result(
+    sorted_scores = ibs.finfindr_wbia_distance_list_from_finfindr_result(
         qaids, daids, qaids_clean, daids_clean, response
     )
     sorted_scores_ = []
@@ -898,7 +898,7 @@ def finfindr_double_check_random_order(ibs, qaid_list, daid_list):
         qaids_clean_, daids_clean_, response_ = ibs.wbia_plugin_finfindr_identify(
             qaids, daids_, use_depc=False
         )
-        score = ibs.finfindr_ibeis_distance_list_from_finfindr_result(
+        score = ibs.finfindr_wbia_distance_list_from_finfindr_result(
             qaids, daids_, qaids_clean_, daids_clean_, response_
         )[0]
         sorted_scores_.append(score)
