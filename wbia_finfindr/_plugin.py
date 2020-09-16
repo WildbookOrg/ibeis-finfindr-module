@@ -5,9 +5,9 @@ import wbia
 from wbia.control import controller_inject, docker_control
 from wbia.constants import ANNOTATION_TABLE
 from wbia.web.apis_engine import ensure_uuid_list
+from wbia import dtool as dt
 import numpy as np
 import utool as ut
-import dtool as dt
 import vtool as vt
 import requests
 from PIL import Image, ImageDraw
