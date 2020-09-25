@@ -49,11 +49,11 @@ def _wbia_plugin_finfindr_check_container(url):
     flag_list = []
     endpoint_list = list(endpoints.keys())
     for endpoint in endpoint_list:
-        print('Checking endpoint %r against url %r' % (endpoint, url,))
+        print('Checking endpoint %r against url %r' % (endpoint, url))
         flag = False
         required_methods = set(endpoints[endpoint])
         supported_methods = None
-        url_ = 'http://%s/%s' % (url, endpoint,)
+        url_ = 'http://%s/%s' % (url, endpoint)
 
         try:
             # http options returns the comma-sep methods supported at the url and endpoint, e.g. POST
@@ -120,7 +120,7 @@ def finfindr_feature_extract_aid_helper(url, fpath, retry=3):
     import requests
     import json
 
-    print('Getting finfindr hash from %s for file %s' % (url, fpath,))
+    print('Getting finfindr hash from %s for file %s' % (url, fpath))
 
     url_ = 'http://%s/ocpu/library/finFindR/R/hashFromImage/json' % (url)
 
@@ -199,7 +199,7 @@ def finfindr_feature_extract_aid_batch(ibs, aid_list, jobs=None, **kwargs):
         index += 1
         index %= len(url_clone_list)
 
-    args_list = list(zip(url_list, fpath_list,))
+    args_list = list(zip(url_list, fpath_list))
 
     json_result_gen = ut.generate2(
         finfindr_feature_extract_aid_helper,
@@ -342,7 +342,7 @@ def wbia_plugin_finfindr_identify(
 
     print(
         '[finfindr] Retrieved features for %d qaids, %d daids'
-        % (len(qaid_list), len(daid_list),)
+        % (len(qaid_list), len(daid_list))
     )
     print('[finfindr] \tClean qaids: %d' % (num_qaid_clean,))
     print('[finfindr] \tClean daids: %d' % (num_daid_clean,))
