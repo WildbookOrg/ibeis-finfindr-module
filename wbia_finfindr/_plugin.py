@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+import logging
 from os.path import abspath, exists, join, dirname, split
 import wbia
 from wbia.control import controller_inject, docker_control
@@ -31,6 +32,7 @@ GLOBAL_FEATURE_IN_MEMORY_CACHE = {}
 
 # Section: wbia binds
 (print, rrr, profile) = ut.inject2(__name__)
+logger = logging.getLogger()
 _, register_ibs_method = controller_inject.make_ibs_register_decorator(__name__)
 register_api = controller_inject.get_wbia_flask_api(__name__)
 register_preproc_annot = controller_inject.register_preprocs['annot']
@@ -48,7 +50,7 @@ def _wbia_plugin_finfindr_check_container(url):
     flag_list = []
     endpoint_list = list(endpoints.keys())
     for endpoint in endpoint_list:
-        print('Checking endpoint %r against url %r' % (endpoint, url))
+        logger.info('Checking endpoint %r against url %r' % (endpoint, url))
         flag = False
         required_methods = set(endpoints[endpoint])
         supported_methods = None
@@ -74,13 +76,13 @@ def _wbia_plugin_finfindr_check_container(url):
                 flag = True
         if not flag:
             args = (endpoint,)
-            print(
+            logger.info(
                 '[wbia_deepsense - FAILED CONTAINER ENSURE CHECK] Endpoint %r failed the check'
                 % args
             )
-            print('\tRequired Methods:  %r' % (required_methods,))
-            print('\tSupported Methods: %r' % (supported_methods,))
-        print('\tFlag: %r' % (flag,))
+            logger.info('\tRequired Methods:  %r' % (required_methods,))
+            logger.info('\tSupported Methods: %r' % (supported_methods,))
+        logger.info('\tFlag: %r' % (flag,))
         flag_list.append(flag)
     supported = np.all(flag_list)
     return supported
@@ -111,7 +113,9 @@ def finfindr_ensure_backend(ibs, container_name='flukebook_finfindr', clone=None
                 BACKEND_URLS,
                 BACKEND_URL,
             )
-            print('[WARNING] Multiple BACKEND_URLS:\n\tFound: %r\n\tUsing: %r' % args)
+            logger.info(
+                '[WARNING] Multiple BACKEND_URLS:\n\tFound: %r\n\tUsing: %r' % args
+            )
     return BACKEND_URL
 
 
@@ -119,7 +123,7 @@ def finfindr_feature_extract_aid_helper(url, fpath, retry=3):
     import requests
     import json
 
-    print('Getting finfindr hash from %s for file %s' % (url, fpath))
+    logger.info('Getting finfindr hash from %s for file %s' % (url, fpath))
 
     url_ = 'http://%s/ocpu/library/finFindR/R/hashFromImage/json' % (url)
 
@@ -132,15 +136,15 @@ def finfindr_feature_extract_aid_helper(url, fpath, retry=3):
     try:
         json_result = json.loads(response.content)
     except json.JSONDecodeError:
-        print('------------------')
-        print('FINFINDR API ERROR:')
-        print(response.content.decode('ascii'))
-        print('------------------')
+        logger.info('------------------')
+        logger.info('FINFINDR API ERROR:')
+        logger.info(response.content.decode('ascii'))
+        logger.info('------------------')
         json_result = None
 
         # Attempt to try again...
         if retry > 0:
-            print('Retrying this request again (retry = %d)' % (retry,))
+            logger.info('Retrying this request again (retry = %d)' % (retry,))
             new_retry = retry - 1
             json_result = finfindr_feature_extract_aid_helper(url, fpath, retry=new_retry)
 
@@ -181,7 +185,9 @@ def finfindr_feature_extract_aid_batch(ibs, aid_list, jobs=None, **kwargs):
                 urls_clone,
                 url_clone,
             )
-            print('[WARNING] Multiple BACKEND_URLS:\n\tFound: %r\n\tUsing: %r' % args)
+            logger.info(
+                '[WARNING] Multiple BACKEND_URLS:\n\tFound: %r\n\tUsing: %r' % args
+            )
         url_clone_list.append(url_clone)
 
     config = {
@@ -339,12 +345,12 @@ def wbia_plugin_finfindr_identify(
     num_qaid_clean = len(qaid_list_clean)
     num_daid_clean = len(daid_list_clean)
 
-    print(
+    logger.info(
         '[finfindr] Retrieved features for %d qaids, %d daids'
         % (len(qaid_list), len(daid_list))
     )
-    print('[finfindr] \tClean qaids: %d' % (num_qaid_clean,))
-    print('[finfindr] \tClean daids: %d' % (num_daid_clean,))
+    logger.info('[finfindr] \tClean qaids: %d' % (num_qaid_clean,))
+    logger.info('[finfindr] \tClean daids: %d' % (num_daid_clean,))
 
     if 0 in [num_qaid_clean, num_daid_clean]:
         response = None
@@ -552,7 +558,7 @@ def finfindr_passport(ibs, aid, output=False, config={}, **kwargs):
         # TODO: save to UUID not aid
         # output_filepath = output_filepath_fmtstr % (annot_uuid, )
         output_filepath = output_filepath_fmtstr % (aid,)
-        print('Writing to %s' % (output_filepath,))
+        logger.info('Writing to %s' % (output_filepath,))
         pil_image.save(output_filepath)
 
     return pil_image
