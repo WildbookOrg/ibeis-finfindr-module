@@ -91,7 +91,7 @@ def _wbia_plugin_finfindr_check_container(url):
 docker_control.docker_register_config(
     None,
     'flukebook_finfindr',
-    'wildme.azurecr.io/ibeis/finfindr:1.8.1',
+    'wildme.azurecr.io/ibeis/finfindr:1.8.0',
     run_args={'_internal_port': 8004, '_external_suggested_port': 8004},
     container_check_func=_wbia_plugin_finfindr_check_container,
 )
@@ -239,7 +239,7 @@ def finfindr_feature_extract_aid_depc(depc, aid_list, config):
     if OLD:
         # Compute the features one at a time
         for aid in aid_list:
-            response = ibs.finfindr_feature_extract_aid(aid)
+                response = ibs.finfindr_feature_extract_aid(aid)
             yield (response,)
     else:
         # Compute the features in small batches (for multi-container processing)
