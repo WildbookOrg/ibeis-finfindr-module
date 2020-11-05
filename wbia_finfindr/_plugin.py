@@ -135,7 +135,12 @@ def finfindr_feature_extract_aid_helper(url, fpath, retry=3):
 
     try:
         json_result = json.loads(response.content)
-    except json.JSONDecodeError:
+        # check for weird rare case where json_result looks exactly like [{},{}]
+        assert isinstance(json_result, dict)
+        assert json_result.get('hash', None) is not None
+        assert json_result.get('coordinates', None) is not None
+
+    except (json.JSONDecodeError, AssertionError):
         logger.info('------------------')
         logger.info('FINFINDR API ERROR:')
         logger.info(response.content.decode('ascii'))
@@ -424,7 +429,6 @@ def finfindr_aid_feature_dict(ibs, aid_list, skip_failures=False):
             hash_ = hash_data.get('hash', [])
             if len(hash_) > 0:
                 hash_ = hash_[0]
-            [0]
 
         if hash_ is None and skip_failures:
             continue
