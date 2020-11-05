@@ -425,6 +425,8 @@ def finfindr_aid_feature_dict(ibs, aid_list, skip_failures=False):
 
         if hash_data is None:
             hash_ = None
+        elif isinstance(hash_data, list):
+            hash_ = None
         else:
             hash_ = hash_data.get('hash', [])
             if len(hash_) > 0:
