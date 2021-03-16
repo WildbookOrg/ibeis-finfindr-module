@@ -539,7 +539,7 @@ def finfindr_wbia_distance_list_from_finfindr_result(
 @register_ibs_method
 def finfindr_passport(ibs, aid, output=False, config={}, **kwargs):
 
-    annot_hash_data = ibs.depc_annot.get('FinfindrFeature', [aid], 'response')
+    annot_hash_data = ibs.depc_annot.get('FinfindrFeature', [aid], 'response', config=config)
     hash_data = annot_hash_data[0]
 
     if hash_data is None:
@@ -799,6 +799,14 @@ class FinfindrRequest(dt.base.VsOneSimilarityRequest):
         config = request.config
         cm_list = list(get_match_results(depc, qaid_list, daid_list, score_list, config))
         table.delete_rows(rowids)
+
+        # Extra cleanup for FinfindrDistance
+        ibs = depc.controller
+        for table_ in ibs.depc_annot.tables:
+            if table_.tablename == 'FinfindrDistance':
+                rowids_ = table_.get_rowid(parent_rowids, config=request)
+                table_.delete_rows(rowids_)
+
         return cm_list
 
     def execute(request, *args, **kwargs):
@@ -859,7 +867,7 @@ def wbia_plugin_finfindr(depc, qaid_list, daid_list, config):
     # this is going to load the distances from the distance cache and convert those to scores a la Flukematch
 
     ibs = depc.controller
-    distances = ibs.depc_annot.get('FinfindrDistance', (qaid_list, daid_list), 'distance')
+    distances = ibs.depc_annot.get('FinfindrDistance', (qaid_list, daid_list), 'distance', config=config)
     for distance in distances:
         # I'm still confused about these trailing commas. Are we casting this to a unary tuple?
         score = finfindr_distance_to_match_score(distance)
