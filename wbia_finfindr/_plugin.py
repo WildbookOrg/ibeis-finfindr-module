@@ -804,7 +804,7 @@ class FinfindrRequest(dt.base.VsOneSimilarityRequest):
         ibs = depc.controller
         for table_ in ibs.depc_annot.tables:
             if table_.tablename == 'FinfindrDistance':
-                rowids_ = table_.get_rowid(parent_rowids, config=request)
+                rowids_ = table_.get_rowid(parent_rowids, config=request.config)
                 table_.delete_rows(rowids_)
 
         return cm_list
