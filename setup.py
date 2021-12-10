@@ -1,132 +1,93 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-import subprocess
-import os
+from __future__ import absolute_import, division, print_function
 import sys
+from os.path import exists
+from collections import OrderedDict
 
-try:
-    from setuptools import setup
-except ImportError:
-    from distutils.core import setup
-
-
-CLASSIFIERS = """
-Development Status :: 3 - Alpha
-Intended Audience :: Developers
-Intended Audience :: Science/Research
-License :: OSI Approved :: Apache Software License
-Operating System :: Microsoft :: Windows
-Operating System :: POSIX
-Operating System :: Unix
-Operating System :: MacOS
-Programming Language :: Python
-Programming Language :: Python :: 2
-Programming Language :: Python :: 2.7
-Programming Language :: Python :: 3
-Programming Language :: Python :: 3.3
-Programming Language :: Python :: 3.4
-Topic :: Scientific/Engineering :: Bio-Informatics
-"""
-NAME = 'IBEIS finFindR Plugin'
-MAINTAINER = 'Wildbook Org. | IBEIS IA'
-MAINTAINER_EMAIL = 'info@wildme.org'
-DESCRIPTION = 'An IBEIS plugin to add the finFindR dolphin ID algorithm.'
-LONG_DESCRIPTION = DESCRIPTION
-KEYWORDS = ['ibeis', 'plugin', 'finFindR', 'wildbook', 'ia']
-URL = 'https://github.com/WildbookOrg/'
-DOWNLOAD_URL = ''
-LICENSE = 'Apache'
-AUTHOR = MAINTAINER
-AUTHOR_EMAIL = MAINTAINER_EMAIL
-PLATFORMS = ['Windows', 'Linux', 'Solaris', 'Mac OS-X', 'Unix']
-MAJOR = 0
-MINOR = 1
-MICRO = 0
-SUFFIX = 'dev0'
-VERSION = '%d.%d.%d.%s' % (MAJOR, MINOR, MICRO, SUFFIX)
-PACKAGES = ['wbia_finfindr']
+from setuptools import find_packages
+from skbuild import setup
 
 
-def git_version():
+def native_mb_python_tag(plat_impl=None, version_info=None):
     """
-    Return the sha1 of local git HEAD as a string.
+    Example:
+        >>> print(native_mb_python_tag())
+        >>> print(native_mb_python_tag('PyPy', (2, 7)))
+        >>> print(native_mb_python_tag('CPython', (3, 8)))
     """
+    if plat_impl is None:
+        import platform
 
-    def _minimal_ext_cmd(cmd):
-        # construct minimal environment
-        env = {}
-        for k in ['SYSTEMROOT', 'PATH', 'PYTHONPATH']:
-            v = os.environ.get(k)
-            if v is not None:
-                env[k] = v
-        # LANGUAGE is used on win32
-        env['LANGUAGE'] = 'C'
-        env['LANG'] = 'C'
-        env['LC_ALL'] = 'C'
-        out = subprocess.Popen(cmd, stdout=subprocess.PIPE, env=env).communicate()[0]
-        return out
+        plat_impl = platform.python_implementation()
 
-    try:
-        out = _minimal_ext_cmd(['git', 'rev-parse', 'HEAD'])
-        git_revision = out.strip().decode('ascii')
-    except OSError:
-        git_revision = 'unknown-git'
-    return git_revision
+    if version_info is None:
+        import sys
 
+        version_info = sys.version_info
 
-def write_version_py(filename=os.path.join('wbia_finfindr', 'version.py')):
-    cnt = """
-# THIS FILE IS GENERATED FROM SETUP.PY
-version = '%(version)s'
-git_revision = '%(git_revision)s'
-full_version = '%%(version)s.%%(git_revision)s' %% {
-    'version': version,
-    'git_revision': git_revision,
-}
-"""
-    FULL_VERSION = VERSION
-    if os.path.isdir('.git'):
-        GIT_REVISION = git_version()
-    elif os.path.exists(filename):
-        GIT_REVISION = 'RELEASE'
+    major, minor = version_info[0:2]
+    ver = '{}{}'.format(major, minor)
+
+    if plat_impl == 'CPython':
+        # TODO: get if cp27m or cp27mu
+        impl = 'cp'
+        if ver == '27':
+            IS_27_BUILT_WITH_UNICODE = True  # how to determine this?
+            if IS_27_BUILT_WITH_UNICODE:
+                abi = 'mu'
+            else:
+                abi = 'm'
+        else:
+            if ver == '38':
+                # no abi in 38?
+                abi = ''
+            else:
+                abi = 'm'
+        mb_tag = '{impl}{ver}-{impl}{ver}{abi}'.format(**locals())
+    elif plat_impl == 'PyPy':
+        abi = ''
+        impl = 'pypy'
+        ver = '{}{}'.format(major, minor)
+        mb_tag = '{impl}-{ver}'.format(**locals())
     else:
-        GIT_REVISION = 'unknown'
-
-    FULL_VERSION += '.' + GIT_REVISION
-    text = cnt % {'version': VERSION, 'git_revision': GIT_REVISION}
-    try:
-        with open(filename, 'w') as a:
-            a.write(text)
-    except Exception as e:
-        print(e)
+        raise NotImplementedError(plat_impl)
+    return mb_tag
 
 
-def do_setup():
-    write_version_py()
+def parse_version(fpath='wbia_finfindr/__init__.py'):
+    """
+    Statically parse the version number from a python file
 
-    install_requires = parse_requirements('requirements/runtime.txt')
-    extras_require = {
-        'all': parse_requirements('requirements.txt'),
-        'runtime': parse_requirements('requirements/runtime.txt'),
-        'build': parse_requirements('requirements/build.txt'),
-    }
 
-    setup(
-        name=NAME,
-        version=VERSION,
-        description=DESCRIPTION,
-        long_description=LONG_DESCRIPTION,
-        classifiers=CLASSIFIERS,
-        author=AUTHOR,
-        author_email=AUTHOR_EMAIL,
-        url=URL,
-        license=LICENSE,
-        platforms=PLATFORMS,
-        packages=PACKAGES,
-        keywords=CLASSIFIERS.replace('\n', ' ').strip(),
-        install_requires=install_requires,
-        extras_require=extras_require,
-    )
+    """
+    import ast
+
+    if not exists(fpath):
+        raise ValueError('fpath={!r} does not exist'.format(fpath))
+    with open(fpath, 'r') as file_:
+        sourcecode = file_.read()
+    pt = ast.parse(sourcecode)
+
+    class VersionVisitor(ast.NodeVisitor):
+        def visit_Assign(self, node):
+            for target in node.targets:
+                if getattr(target, 'id', None) == '__version__':
+                    self.version = node.value.s
+
+    visitor = VersionVisitor()
+    visitor.visit(pt)
+    return visitor.version
+
+
+def parse_long_description(fpath='README.rst'):
+    """
+    Reads README text, but doesn't break if README does not exist.
+    """
+    if exists(fpath):
+        with open(fpath, 'r') as file:
+            return file.read()
+    return ''
 
 
 def parse_requirements(fname='requirements.txt', with_version=False):
@@ -208,5 +169,69 @@ def parse_requirements(fname='requirements.txt', with_version=False):
     return packages
 
 
+NAME = 'wbia-finfindr'
+
+
+MB_PYTHON_TAG = native_mb_python_tag()  # NOQA
+
+AUTHORS = [
+    'Jason Parham',
+]
+AUTHOR_EMAIL = 'info@wildme.org'
+URL = 'https://github.com/WildbookOrg/wbia-plugin-finfindr'
+LICENSE = 'Apache Version 2.0'
+DESCRIPTION = 'wbia_finfindr - A plug-in for the finFindR dolphin ID algorithm'
+
+KWARGS = OrderedDict(
+    name=NAME,
+    author=', '.join(AUTHORS),
+    author_email=AUTHOR_EMAIL,
+    description=DESCRIPTION,
+    long_description=parse_long_description('README.rst'),
+    long_description_content_type='text/x-rst',
+    url=URL,
+    license=LICENSE,
+    install_requires=parse_requirements('requirements/runtime.txt'),
+    extras_require={
+        'all': parse_requirements('requirements.txt'),
+        'tests': parse_requirements('requirements/tests.txt'),
+        'build': parse_requirements('requirements/build.txt'),
+        'runtime': parse_requirements('requirements/runtime.txt'),
+    },
+    # --- VERSION ---
+    # The following settings retreive the version from git.
+    # See https://github.com/pypa/setuptools_scm/ for more information
+    setup_requires=['setuptools_scm'],
+    use_scm_version={
+        'write_to': 'wbia_finfindr/_version.py',
+        'write_to_template': '__version__ = "{version}"',
+        'tag_regex': '^(?P<prefix>v)?(?P<version>[^\\+]+)(?P<suffix>.*)?$',
+        'local_scheme': 'dirty-tag',
+    },
+    packages=find_packages(),
+    package_dir={'wbia_finfindr': 'wbia_finfindr'},
+    include_package_data=False,
+    # List of classifiers available at:
+    # https://pypi.python.org/pypi?%3Aaction=list_classifiers
+    classifiers=[
+        'Development Status :: 6 - Mature',
+        'License :: OSI Approved :: BSD License',
+        'Intended Audience :: Developers',
+        'Intended Audience :: Science/Research',
+        'Operating System :: MacOS :: MacOS X',
+        'Operating System :: Unix',
+        'Topic :: Software Development :: Libraries :: Python Modules',
+        'Topic :: Utilities',
+        'Programming Language :: Python :: 3',
+        'Programming Language :: Python :: 3.5',
+        'Programming Language :: Python :: 3.6',
+        'Programming Language :: Python :: 3.7',
+        'Programming Language :: Python :: 3.8',
+    ],
+)
+
 if __name__ == '__main__':
-    do_setup()
+    """
+    python -c "import utool; print(utool.__file__)"
+    """
+    setup(**KWARGS)

@@ -12,3 +12,6 @@ _page/
 version.py
 *.pyc
 _output/
+
+docs/
+_docs/_build/
