@@ -15,3 +15,5 @@ _output/
 
 docs/
 _docs/_build/
+
+wbia_finfindr/_version.py
