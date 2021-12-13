@@ -255,7 +255,7 @@ def finfindr_feature_extract(ibs, annot_uuid, use_depc=True, config={}, **kwargs
         python -m wbia_finfindr._plugin --test-finfindr_feature_extract:0
 
     Example:
-        >>> # ENABLE_DOCTEST
+        >>> # DISABLE_DOCTEST
         >>> import utool as ut
         >>> import wbia_finfindr
         >>> import wbia
@@ -296,7 +296,7 @@ def wbia_plugin_finfindr_identify(
         python -m wbia_finfindr._plugin --test-wbia_plugin_finfindr_identify:0
 
     Example:
-        >>> # ENABLE_DOCTEST
+        >>> # DISABLE_DOCTEST
         >>> import utool as ut
         >>> import wbia_finfindr
         >>> from wbia_finfindr._plugin import FinfindrRequest
@@ -379,7 +379,7 @@ def finfindr_aid_feature_dict(ibs, aid_list, skip_failures=False):
         python -m wbia_finfindr._plugin --test-finfindr_aid_feature_dict:0
 
     Example:
-        >>> # ENABLE_DOCTEST
+        >>> # DISABLE_DOCTEST
         >>> import utool as ut
         >>> import wbia_finfindr
         >>> from wbia_finfindr._plugin import FinfindrRequest
@@ -487,7 +487,7 @@ def finfindr_wbia_distance_list_from_finfindr_result(
         python -m wbia_finfindr._plugin --test-finfindr_wbia_distance_list_from_finfindr_result:0
 
     Example:
-        >>> # ENABLE_DOCTEST
+        >>> # DISABLE_DOCTEST
         >>> import utool as ut
         >>> import wbia_finfindr
         >>> import wbia
@@ -750,7 +750,7 @@ class FinfindrConfig(dt.Config):  # NOQA
         python -m wbia_deepsense._plugin --test-FinfindrConfig
 
     Example:
-        >>> # ENABLE_DOCTEST
+        >>> # DISABLE_DOCTEST
         >>> from wbia_finfindr._plugin import *  # NOQA
         >>> config = FinfindrConfig()
         >>> result = config.get_cfgstr()
@@ -836,7 +836,7 @@ def wbia_plugin_finfindr(depc, qaid_list, daid_list, config):
         python -m wbia_finfindr._plugin --exec-wbia_plugin_finfindr:0
 
     Example:
-        >>> # ENABLE_DOCTEST
+        >>> # DISABLE_DOCTEST
         >>> import utool as ut
         >>> import wbia_finfindr
         >>> from wbia_finfindr._plugin import FinfindrRequest
