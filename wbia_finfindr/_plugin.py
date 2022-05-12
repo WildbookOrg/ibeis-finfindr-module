@@ -82,7 +82,7 @@ def _wbia_plugin_finfindr_check_container(url):
 docker_control.docker_register_config(
     None,
     'flukebook_finfindr',
-    'wildme/wbia-plugin-finfindr:1.8.3',
+    'wildme/wbia-plugin-finfindr:latest',
     run_args={'_internal_port': 8004, '_external_suggested_port': 8004},
     container_check_func=_wbia_plugin_finfindr_check_container,
 )
