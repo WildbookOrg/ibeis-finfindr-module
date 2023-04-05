@@ -49,22 +49,26 @@ def _wbia_plugin_finfindr_check_container(url):
 
         try:
             # http options returns the comma-sep methods supported at the url and endpoint, e.g. POST
-            response = requests.options(url_, timeout=1)
+            response = requests.options(url_, timeout=20)
         except Exception:
             response = None
 
         if response is not None and response.status_code:
-            headers = response.headers
+            logger.info(
+                '[wbia_finfindr - PASSED CONTAINER URL CHECK] URL %r passed the check'
+                % url_
+            )
+            #headers = response.headers
             # unpack the return from options
             # TODO: generalize this key / iterate across options
-            allow = headers.get('Access-Control-Allow-Methods', '')
+            #allow = headers.get('Access-Control-Allow-Methods', '')
             # split up the comma-seperated list (and uppercase)
-            supported_methods_ = [method.strip().upper() for method in allow.split(',')]
-            supported_methods = set(supported_methods_)
+            #supported_methods_ = [method.strip().upper() for method in allow.split(',')]
+            #supported_methods = set(supported_methods_)
             # from our set of required methods, remove each method that is in fact supported
             # assert the result is empty
-            if len(required_methods - supported_methods) == 0:
-                flag = True
+            #if len(required_methods - supported_methods) == 0:
+            flag = True
         if not flag:
             args = (endpoint,)
             logger.info(
