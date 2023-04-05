@@ -68,7 +68,7 @@ def _wbia_plugin_finfindr_check_container(url):
         if not flag:
             args = (endpoint,)
             logger.info(
-                '[wbia_deepsense - FAILED CONTAINER ENSURE CHECK] Endpoint %r failed the check'
+                '[wbia_finfindr - FAILED CONTAINER ENSURE CHECK] Endpoint %r failed the check'
                 % args
             )
             logger.info('\tRequired Methods:  %r' % (required_methods,))
