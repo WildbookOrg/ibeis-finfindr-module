@@ -6,15 +6,27 @@ Wildbook IA - wbia_finfindr
 
 FinFindR Plug-in - Part of the WildMe / Wildbook IA Project.
 
-A plug-in for the finFindR dolphin ID algorithm.
+A plug-in for using the containerized version of the `finFindR dolphin ID algorithm <https://github.com/haimeh/finFindR>`_.
 
-Installation
-------------
+Running the finFindR Container
+------------------------------
+This plugin assumes that:
+
+1. You have separately started the finFindR container with the command: 
+
+.. code:: bash
+
+    docker run -p 8004:8004/tcp --name flukebook_finfindr --network flukebook wildme/wbia-plugin-finfindr:1.8.3
+
+2. Your WBIA container also has the same network ("flukebook" above) defined for it.
+
+Development Setup
+-----------------
 
 .. code:: bash
 
     ./run_developer_setup.sh
-
+    
 Code Style and Development Guidelines
 -------------------------------------
 
