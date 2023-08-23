@@ -1,22 +1,22 @@
 ===========================
-Wildbook IA - wbia_finfindr
+Wildbook IA - wbia_whaleridgefindr
 ===========================
 
 |Build| |Pypi| |ReadTheDocs|
 
-FinFindR Plug-in - Part of the WildMe / Wildbook IA Project.
+whaleridgefindr Plug-in - Part of the WildMe / Wildbook IA Project.
 
-A plug-in for using the containerized version of the `finFindR dolphin ID algorithm <https://github.com/haimeh/finFindR>`_.
+A plug-in for using the containerized version of the `whaleridgefindr gray whale ID algorithm <https://github.com/haimeh/finFindR>`_.
 
-Running the finFindR Container
+Running the whaleridgefindr Container
 ------------------------------
 This plugin assumes that:
 
-1. You have separately started the finFindR container with the command: 
+1. You have separately started the whaleridgefindr container with the command: 
 
 .. code:: bash
 
-    docker run -p 8004:8004/tcp --name flukebook_finfindr --network flukebook wildme/wbia-plugin-finfindr:1.8.3
+    docker run -p 8004:8004/tcp --name flukebook_whaleridgefindr --network flukebook haimeh/whaleridgefindr:latest
 
 2. Your WBIA container also has the same network ("flukebook" above) defined for it.
 
@@ -76,14 +76,14 @@ Our code uses Google-style documentation tests (doctests) that uses pytest and x
 
     pytest
 
-.. |Build| image:: https://img.shields.io/github/workflow/status/WildMeOrg/wbia-plugin-finfindr/Build%20and%20upload%20to%20PyPI/main
-    :target: https://github.com/WildMeOrg/wbia-plugin-finfindr/actions?query=branch%3Amain+workflow%3A%22Build+and+upload+to+PyPI%22
+.. |Build| image:: https://img.shields.io/github/workflow/status/WildMeOrg/wbia-plugin-whaleridgefindr/Build%20and%20upload%20to%20PyPI/main
+    :target: https://github.com/WildMeOrg/wbia-plugin-whaleridgefindr/actions?query=branch%3Amain+workflow%3A%22Build+and+upload+to+PyPI%22
     :alt: Build and upload to PyPI (main)
 
-.. |Pypi| image:: https://img.shields.io/pypi/v/wbia-finfindr.svg
-   :target: https://pypi.python.org/pypi/wbia-finfindr
+.. |Pypi| image:: https://img.shields.io/pypi/v/wbia-whaleridgefindr.svg
+   :target: https://pypi.python.org/pypi/wbia-whaleridgefindr
    :alt: Latest PyPI version
 
-.. |ReadTheDocs| image:: https://readthedocs.org/projects/wbia-plugin-finfindr/badge/?version=latest
-    :target: https://wbia-plugin-finfindr.readthedocs.io/en/latest/
+.. |ReadTheDocs| image:: https://readthedocs.org/projects/wbia-plugin-whaleridgefindr/badge/?version=latest
+    :target: https://wbia-plugin-whaleridgefindr.readthedocs.io/en/latest/
     :alt: Documentation on ReadTheDocs
