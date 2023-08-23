@@ -33,7 +33,7 @@ register_route = controller_inject.get_wbia_flask_route(__name__)
 
 
 # TODO: abstract this out to a func that takes endpoints as an arg and lives in the docker controller
-def _wbia_plugin_whaleridgefindr_check_container(url):
+def _wbia_plugin_finfindr_check_container(url):
     endpoints = {
         'ocpu/library/finFindR/R/hashFromImage/json': ['POST'],
         'ocpu/library/finFindR/R/distanceToRefParallel/json': ['POST'],
@@ -55,7 +55,7 @@ def _wbia_plugin_whaleridgefindr_check_container(url):
 
         if response is not None and response.status_code:
             logger.info(
-                '[wbia_whaleridgefindr - PASSED CONTAINER URL CHECK] URL %r passed the check'
+                '[wbia_finfindr - PASSED CONTAINER URL CHECK] URL %r passed the check'
                 % url_
             )
             #headers = response.headers
@@ -72,7 +72,7 @@ def _wbia_plugin_whaleridgefindr_check_container(url):
         if not flag:
             args = (endpoint,)
             logger.info(
-                '[wbia_whaleridgefindr - FAILED CONTAINER ENSURE CHECK] Endpoint %r failed the check'
+                '[wbia_finfindr - FAILED CONTAINER ENSURE CHECK] Endpoint %r failed the check'
                 % args
             )
             logger.info('\tRequired Methods:  %r' % (required_methods,))
@@ -85,15 +85,15 @@ def _wbia_plugin_whaleridgefindr_check_container(url):
 
 docker_control.docker_register_config(
     None,
-    'flukebook_whaleridgefindr',
-    'haimeh/whaleridgefindr:latest',
-    run_args={'_internal_port': 8005, '_external_suggested_port': 8005},
-    container_check_func=_wbia_plugin_whaleridgefindr_check_container,
+    'flukebook_finfindr',
+    'wildme/wbia-plugin-finfindr:latest',
+    run_args={'_internal_port': 8004, '_external_suggested_port': 8004},
+    container_check_func=_wbia_plugin_finfindr_check_container,
 )
 
 
 @register_ibs_method
-def whaleridgefindr_ensure_backend(ibs, container_name='flukebook_whaleridgefindr', clone=None):
+def finfindr_ensure_backend(ibs, container_name='flukebook_finfindr', clone=None):
     # below code doesn't work bc of wbia-scope issue
     global BACKEND_URL
     if BACKEND_URL is None:
@@ -114,11 +114,11 @@ def whaleridgefindr_ensure_backend(ibs, container_name='flukebook_whaleridgefind
     return BACKEND_URL
 
 
-def whaleridgefindr_feature_extract_aid_helper(url, fpath, retry=3):
+def finfindr_feature_extract_aid_helper(url, fpath, retry=3):
     import requests
     import json
 
-    logger.info('Getting whaleridgefindr hash from %s for file %s' % (url, fpath))
+    logger.info('Getting finfindr hash from %s for file %s' % (url, fpath))
 
     url_ = 'http://%s/ocpu/library/finFindR/R/hashFromImage/json' % (url)
 
@@ -137,7 +137,7 @@ def whaleridgefindr_feature_extract_aid_helper(url, fpath, retry=3):
 
     except (json.JSONDecodeError, AssertionError):
         logger.info('------------------')
-        logger.info('WHALERIDGEFINDR API ERROR:')
+        logger.info('FINFINDR API ERROR:')
         logger.info(response.content.decode('ascii'))
         logger.info('------------------')
         json_result = None
@@ -146,21 +146,21 @@ def whaleridgefindr_feature_extract_aid_helper(url, fpath, retry=3):
         if retry > 0:
             logger.info('Retrying this request again (retry = %d)' % (retry,))
             new_retry = retry - 1
-            json_result = whaleridgefindr_feature_extract_aid_helper(url, fpath, retry=new_retry)
+            json_result = finfindr_feature_extract_aid_helper(url, fpath, retry=new_retry)
 
     return json_result
 
 
 @register_ibs_method
-def whaleridgefindr_feature_extract_aid(ibs, aid, **kwargs):
-    url = ibs.whaleridgefindr_ensure_backend(**kwargs)
-    fpath = ibs.whaleridgefindr_annot_chip_fpath_from_aid(aid)
-    json_result = whaleridgefindr_feature_extract_aid_helper(url, fpath)
+def finfindr_feature_extract_aid(ibs, aid, **kwargs):
+    url = ibs.finfindr_ensure_backend(**kwargs)
+    fpath = ibs.finfindr_annot_chip_fpath_from_aid(aid)
+    json_result = finfindr_feature_extract_aid_helper(url, fpath)
     return json_result
 
 
 @register_ibs_method
-def whaleridgefindr_feature_extract_aid_batch(ibs, aid_list, jobs=None, **kwargs):
+def finfindr_feature_extract_aid_batch(ibs, aid_list, jobs=None, **kwargs):
 
     MAXJOBS = 4
 
@@ -172,7 +172,7 @@ def whaleridgefindr_feature_extract_aid_batch(ibs, aid_list, jobs=None, **kwargs
 
     url_clone_list = []
     for job in range(jobs):
-        container_name = 'flukebook_whaleridgefindr'
+        container_name = 'flukebook_finfindr'
         urls_clone = ibs.docker_ensure(container_name, clone=job)
 
         if len(urls_clone) == 0:
@@ -207,7 +207,7 @@ def whaleridgefindr_feature_extract_aid_batch(ibs, aid_list, jobs=None, **kwargs
     args_list = list(zip(url_list, fpath_list))
 
     json_result_gen = ut.generate2(
-        whaleridgefindr_feature_extract_aid_helper,
+        finfindr_feature_extract_aid_helper,
         args_list,
         nTasks=len(args_list),
         nprocs=jobs,
@@ -219,49 +219,49 @@ def whaleridgefindr_feature_extract_aid_batch(ibs, aid_list, jobs=None, **kwargs
     return json_result_list
 
 
-class WhaleRidgeFindRFeatureConfig(dt.Config):  # NOQA
+class FinfindrFeatureConfig(dt.Config):  # NOQA
     _param_info_list = []
 
 
 @register_preproc_annot(
-    tablename='WhaleRidgeFindRFeature',
+    tablename='FinfindrFeature',
     parents=[ANNOTATION_TABLE],
     colnames=['response'],
     coltypes=[dict],
-    configclass=WhaleRidgeFindRFeatureConfig,
-    fname='whaleridgefindr',
+    configclass=FinfindrFeatureConfig,
+    fname='finfindr',
     chunksize=128,
 )
-def whaleridgefindr_feature_extract_aid_depc(depc, aid_list, config):
+def finfindr_feature_extract_aid_depc(depc, aid_list, config):
     # The doctest for wbia_plugin_deepsense_identify_deepsense_ids also covers this func
     ibs = depc.controller
     OLD = True
     if OLD:
         # Compute the features one at a time
         for aid in aid_list:
-            response = ibs.whaleridgefindr_feature_extract_aid(aid)
+            response = ibs.finfindr_feature_extract_aid(aid)
             yield (response,)
     else:
         # Compute the features in small batches (for multi-container processing)
-        response_list = ibs.whaleridgefindr_feature_extract_aid_batch(aid_list)
+        response_list = ibs.finfindr_feature_extract_aid_batch(aid_list)
         for response in response_list:
             yield (response,)
 
 
 @register_ibs_method
 @register_api('/api/plugin/finfindr/feature/', methods=['GET'])
-def whaleridgefindr_feature_extract(ibs, annot_uuid, use_depc=True, config={}, **kwargs):
+def finfindr_feature_extract(ibs, annot_uuid, use_depc=True, config={}, **kwargs):
     r"""
-    Gets the whaleridgefindr feature representation of an annot
+    Gets the finfindr feature representation of an annot
 
     CommandLine:
-        python -m wbia_whaleridgefindr._plugin --test-whaleridgefindr_feature_extract
-        python -m wbia_whaleridgefindr._plugin --test-whaleridgefindr_feature_extract:0
+        python -m wbia_finfindr._plugin --test-finfindr_feature_extract
+        python -m wbia_finfindr._plugin --test-finfindr_feature_extract:0
 
     Example:
         >>> # DISABLE_DOCTEST
         >>> import utool as ut
-        >>> import wbia_whaleridgefindr
+        >>> import wbia_finfindr
         >>> import wbia
         >>> from wbia.init import sysres
         >>> # The curvrank testdb also uses dolphin dorsals
@@ -269,8 +269,8 @@ def whaleridgefindr_feature_extract(ibs, annot_uuid, use_depc=True, config={}, *
         >>> ibs = wbia.opendb(dbdir=dbdir)
         >>> aid_list = ibs.get_image_aids(1)
         >>> annot_uuid = ibs.get_annot_uuids(aid_list)[0]
-        >>> feature = ibs.whaleridgefindr_feature_extract(annot_uuid, use_depc=False)
-        >>> feature_depc = ibs.whaleridgefindr_feature_extract(annot_uuid)
+        >>> feature = ibs.finfindr_feature_extract(annot_uuid, use_depc=False)
+        >>> feature_depc = ibs.finfindr_feature_extract(annot_uuid)
         >>> assert feature == feature_depc
         >>> result = feature
         >>> print(result)
@@ -280,30 +280,30 @@ def whaleridgefindr_feature_extract(ibs, annot_uuid, use_depc=True, config={}, *
     aid = ibs.get_annot_aids_from_uuid([annot_uuid])[0]
     if use_depc:
         response_list = ibs.depc_annot.get(
-            'WhaleRidgeFindRFeature', [aid], 'response', config=config
+            'FinfindrFeature', [aid], 'response', config=config
         )
         response = response_list[0]
     else:
-        response = ibs.whaleridgefindr_feature_extract_aid(aid)
+        response = ibs.finfindr_feature_extract_aid(aid)
     return response
 
 
 @register_ibs_method
-def wbia_plugin_whaleridgefindr_identify(
+def wbia_plugin_finfindr_identify(
     ibs, qaid_list, daid_list, use_depc=True, config={}, **kwargs
 ):
     r"""
-    Matches qaid_list against daid_list using whaleridgefindr
+    Matches qaid_list against daid_list using Finfindr
 
     CommandLine:
-        python -m wbia_whaleridgefindr._plugin --test-wbia_plugin_whaleridgefindr_identify
-        python -m wbia_whaleridgefindr._plugin --test-wbia_plugin_whaleridgefindr_identify:0
+        python -m wbia_finfindr._plugin --test-wbia_plugin_finfindr_identify
+        python -m wbia_finfindr._plugin --test-wbia_plugin_finfindr_identify:0
 
     Example:
         >>> # DISABLE_DOCTEST
         >>> import utool as ut
-        >>> import wbia_whaleridgefindr
-        >>> from wbia_whaleridgefindr._plugin import whaleridgefindrRequest
+        >>> import wbia_finfindr
+        >>> from wbia_finfindr._plugin import FinfindrRequest
         >>> import wbia
         >>> from wbia.init import sysres
         >>> # The curvrank testdb also uses dolphin dorsals
@@ -312,7 +312,7 @@ def wbia_plugin_whaleridgefindr_identify(
         >>> depc = ibs.depc_annot
         >>> qaid = [1]
         >>> daid_list = [2, 3, 4, 5]
-        >>> qaid_list_clean, daid_list_clean, response = ibs.wbia_plugin_whaleridgefindr_identify(qaid, daid_list)
+        >>> qaid_list_clean, daid_list_clean, response = ibs.wbia_plugin_finfindr_identify(qaid, daid_list)
         >>> assert response.status_code == 201
         >>> result = response.text
         >>> print(result)
@@ -338,8 +338,8 @@ def wbia_plugin_whaleridgefindr_identify(
     qaid_list = sorted(qaid_list)
     daid_list = sorted(daid_list)
 
-    q_feature_dict = ibs.whaleridgefindr_aid_feature_dict(qaid_list, skip_failures=True)
-    d_feature_dict = ibs.whaleridgefindr_aid_feature_dict(daid_list, skip_failures=True)
+    q_feature_dict = ibs.finfindr_aid_feature_dict(qaid_list, skip_failures=True)
+    d_feature_dict = ibs.finfindr_aid_feature_dict(daid_list, skip_failures=True)
 
     qaid_list_clean = list(q_feature_dict.keys())
     daid_list_clean = list(d_feature_dict.keys())
@@ -348,45 +348,45 @@ def wbia_plugin_whaleridgefindr_identify(
     num_daid_clean = len(daid_list_clean)
 
     logger.info(
-        '[whaleridgefindr] Retrieved features for %d qaids, %d daids'
+        '[finfindr] Retrieved features for %d qaids, %d daids'
         % (len(qaid_list), len(daid_list))
     )
-    logger.info('[whaleridgefindr] \tClean qaids: %d' % (num_qaid_clean,))
-    logger.info('[whaleridgefindr] \tClean daids: %d' % (num_daid_clean,))
+    logger.info('[finfindr] \tClean qaids: %d' % (num_qaid_clean,))
+    logger.info('[finfindr] \tClean daids: %d' % (num_daid_clean,))
 
     if 0 in [num_qaid_clean, num_daid_clean]:
         response = None
     else:
-        whaleridgefindr_arg_dict = {}
-        whaleridgefindr_arg_dict['queryHashData'] = q_feature_dict
-        whaleridgefindr_arg_dict['referenceHashData'] = d_feature_dict
-        whaleridgefindr_arg_dict['justIndex'] = 1
-        whaleridgefindr_arg_dict['batchSize'] = 1
+        finfindr_arg_dict = {}
+        finfindr_arg_dict['queryHashData'] = q_feature_dict
+        finfindr_arg_dict['referenceHashData'] = d_feature_dict
+        finfindr_arg_dict['justIndex'] = 1
+        finfindr_arg_dict['batchSize'] = 1
 
-        url = ibs.whaleridgefindr_ensure_backend(**kwargs)
+        url = ibs.finfindr_ensure_backend(**kwargs)
         url = 'http://%s/ocpu/library/finFindR/R/distanceToRefParallel/json' % (url)
 
-        response = requests.post(url, json=whaleridgefindr_arg_dict)
+        response = requests.post(url, json=finfindr_arg_dict)
 
     return qaid_list_clean, daid_list_clean, response
 
 
-# this method takes an aid_list and returns the arguments whaleridgefindr needs to do matching for those aid[p]
+# this method takes an aid_list and returns the arguments finFindR needs to do matching for those aid[p]
 @register_ibs_method
-def whaleridgefindr_aid_feature_dict(ibs, aid_list, skip_failures=False):
+def finfindr_aid_feature_dict(ibs, aid_list, skip_failures=False):
     r"""
-    Constructs the {aid0: feature0, aid1: feature1,...} dict that the whaleridgefindr api
+    Constructs the {aid0: feature0, aid1: feature1,...} dict that the finFindR api
     takes as input for its distance func
 
     CommandLine:
-        python -m wbia_whaleridgefindr._plugin --test-whaleridgefindr_aid_feature_dict
-        python -m wbia_whaleridgefindr._plugin --test-whaleridgefindr_aid_feature_dict:0
+        python -m wbia_finfindr._plugin --test-finfindr_aid_feature_dict
+        python -m wbia_finfindr._plugin --test-finfindr_aid_feature_dict:0
 
     Example:
         >>> # DISABLE_DOCTEST
         >>> import utool as ut
-        >>> import wbia_whaleridgefindr
-        >>> from wbia_whaleridgefindr._plugin import whaleridgefindrRequest
+        >>> import wbia_finfindr
+        >>> from wbia_finfindr._plugin import FinfindrRequest
         >>> import wbia
         >>> from wbia.init import sysres
         >>> # The curvrank testdb also uses dolphin dorsals
@@ -394,7 +394,7 @@ def whaleridgefindr_aid_feature_dict(ibs, aid_list, skip_failures=False):
         >>> ibs = wbia.opendb(dbdir=dbdir)
         >>> depc = ibs.depc_annot
         >>> aid_list = [1, 2]
-        >>> result = ibs.whaleridgefindr_aid_feature_dict(aid_list)
+        >>> result = ibs.finfindr_aid_feature_dict(aid_list)
         >>> print(result)
         {1: [31.7485, -145.0079, 152.3881, -20.2424, -112.6928, -92.4987, -166.5634, 12.4394, 15.0508, -146.4167, 97.4581, -146.8563, 89.4078, 213.0233, 43.8438, -58.0497, -89.5602, 198.5325, 38.7556, 38.5446, -173.2831, 293.7115, -204.0254, -92.9775, -157.026, 64.4671, 11.6679, -200.2824, -225.0971, -75.7923, 268.0069, -72.0642], 2: [-12.9609, -141.8752, 146.1252, -10.9072, -74.338, -81.2214, -212.8647, -55.3229, -7.7403, -192.7125, 27.3991, -113.9109, 96.7002, 185.7276, 73.1729, -70.496, -100.3558, 151.6967, -2.8725, 101.6979, -257.0346, 296.2685, -228.557, -40.953, -137.485, 46.1819, 8.2551, -251.8766, -224.5837, -18.7147, 239.0382, -48.6348]}
     """
@@ -406,7 +406,7 @@ def whaleridgefindr_aid_feature_dict(ibs, aid_list, skip_failures=False):
             dirty_aid_list.append(aid)
 
     dirty_hash_data_list = ibs.depc_annot.get(
-        'whaleridgefindrFeature', dirty_aid_list, 'response'
+        'FinfindrFeature', dirty_aid_list, 'response'
     )
     zipped = zip(dirty_aid_list, dirty_hash_data_list)
     for dirty_aid, dirty_hash_data in zipped:
@@ -419,7 +419,7 @@ def whaleridgefindr_aid_feature_dict(ibs, aid_list, skip_failures=False):
 
     aid_hash_dict = {}
     for aid, hash_data in zip(aid_list, annot_hash_data):
-        # hash_result comes from whaleridgefindr in this format
+        # hash_result comes from finFindR in this format
 
         if hash_data is None:
             hash_ = None
@@ -440,20 +440,20 @@ def whaleridgefindr_aid_feature_dict(ibs, aid_list, skip_failures=False):
     return aid_hash_dict
 
 
-class whaleridgefindrDistanceConfig(dt.Config):  # NOQA
+class FinfindrDistanceConfig(dt.Config):  # NOQA
     _param_info_list = []
 
 
 @register_preproc_annot(
-    tablename='whaleridgefindrDistance',
+    tablename='FinfindrDistance',
     parents=[ANNOTATION_TABLE, ANNOTATION_TABLE],
     colnames=['distance'],
     coltypes=[float],
-    configclass=whaleridgefindrDistanceConfig,
-    fname='whaleridgefindr',
+    configclass=FinfindrDistanceConfig,
+    fname='finfindr',
     chunksize=None,
 )
-def whaleridgefindr_distance_depc(depc, qaid_list, daid_list, config):
+def finfindr_distance_depc(depc, qaid_list, daid_list, config):
     # qaid and aid lists are parallel
     # The doctest for wbia_plugin_deepsense_identify_deepsense_ids also covers this func
     ibs = depc.controller
@@ -462,8 +462,8 @@ def whaleridgefindr_distance_depc(depc, qaid_list, daid_list, config):
     assert len(qaids) == 1
     daids = list(set(daid_list))
 
-    qaids_clean, daids_clean, response = ibs.wbia_plugin_whaleridgefindr_identify(qaids, daids)
-    distance_dict = ibs.whaleridgefindr_wbia_distance_list_from_whaleridgefindr_result(
+    qaids_clean, daids_clean, response = ibs.wbia_plugin_finfindr_identify(qaids, daids)
+    distance_dict = ibs.finfindr_wbia_distance_list_from_finfindr_result(
         qaids, daids, qaids_clean, daids_clean, response
     )
 
@@ -475,25 +475,25 @@ def whaleridgefindr_distance_depc(depc, qaid_list, daid_list, config):
 
 # assuming there was only one qaid, we don't need it for this step
 @register_ibs_method
-def whaleridgefindr_wbia_distance_list_from_whaleridgefindr_result(
+def finfindr_wbia_distance_list_from_finfindr_result(
     ibs, qaid_list, daid_list, qaid_list_clean, daid_list_clean, response, query_no=0
 ):
     r"""
-    whaleridgefindr returns match results in a strange format. This func converts that
+    finFindR returns match results in a strange format. This func converts that
     to wbia's familiar score list.
 
     Args:
-        daid_list: list of daids originally sent to whaleridgefindr
-        response: the response from whaleridgefindr; output of wbia_plugin_whaleridgefindr_identify
+        daid_list: list of daids originally sent to finFindR
+        response: the response from finFindR; output of wbia_plugin_finfindr_identify
 
     CommandLine:
-        python -m wbia_whaleridgefindr._plugin --test-whaleridgefindr_wbia_distance_list_from_whaleridgefindr_result
-        python -m wbia_whaleridgefindr._plugin --test-whaleridgefindr_wbia_distance_list_from_whaleridgefindr_result:0
+        python -m wbia_finfindr._plugin --test-finfindr_wbia_distance_list_from_finfindr_result
+        python -m wbia_finfindr._plugin --test-finfindr_wbia_distance_list_from_finfindr_result:0
 
     Example:
         >>> # DISABLE_DOCTEST
         >>> import utool as ut
-        >>> import wbia_whaleridgefindr
+        >>> import wbia_finfindr
         >>> import wbia
         >>> from wbia.init import sysres
         >>> # The curvrank testdb also uses dolphin dorsals
@@ -502,8 +502,8 @@ def whaleridgefindr_wbia_distance_list_from_whaleridgefindr_result(
         >>> depc = ibs.depc_annot
         >>> qaid = [1]
         >>> daid_list = [2, 3, 4, 5]
-        >>> qaid_list_clean, daid_list_clean, id_response = ibs.wbia_plugin_whaleridgefindr_identify(qaid, daid_list)
-        >>> result = ibs.whaleridgefindr_wbia_distance_list_from_whaleridgefindr_result(qaid, daid_list, qaid_list_clean, daid_list_clean, id_response)
+        >>> qaid_list_clean, daid_list_clean, id_response = ibs.wbia_plugin_finfindr_identify(qaid, daid_list)
+        >>> result = ibs.finfindr_wbia_distance_list_from_finfindr_result(qaid, daid_list, qaid_list_clean, daid_list_clean, id_response)
         >>> print(result)
         [217.5667, 532.0134, 725.5806, 651.7316]
     """
@@ -526,7 +526,7 @@ def whaleridgefindr_wbia_distance_list_from_whaleridgefindr_result(
                 continue
             index -= 1
             daid_clean_str = daid_list_clean[index]
-            # casting daids back-forth bc whaleridgefindr sorts lexigraphically on string keys
+            # casting daids back-forth bc finfindr sorts lexigraphically on string keys
             daid_clean = int(daid_clean_str)
             distance_dict[daid_clean] = distance
     except Exception:
@@ -536,10 +536,10 @@ def whaleridgefindr_wbia_distance_list_from_whaleridgefindr_result(
 
 
 @register_ibs_method
-def whaleridgefindr_passport(ibs, aid, output=False, config={}, **kwargs):
+def finfindr_passport(ibs, aid, output=False, config={}, **kwargs):
 
     annot_hash_data = ibs.depc_annot.get(
-        'whaleridgefindrFeature', [aid], 'response', config=config
+        'FinfindrFeature', [aid], 'response', config=config
     )
     hash_data = annot_hash_data[0]
 
@@ -548,7 +548,7 @@ def whaleridgefindr_passport(ibs, aid, output=False, config={}, **kwargs):
     else:
         edge_coords = hash_data['coordinates']
 
-    image_path = ibs.whaleridgefindr_annot_chip_fpath_from_aid(aid)
+    image_path = ibs.finfindr_annot_chip_fpath_from_aid(aid)
     pil_image = Image.open(image_path)
 
     # we now modify pil_image and save it elsewhere when we're done
@@ -584,7 +584,7 @@ def pil_image_write(absolute_path, pil_img):
     pil_img.save(absolute_path)  # error on this line as it tries to save it as .cpkl
 
 
-class whaleridgefindrPassportConfig(dt.Config):  # NOQA
+class FinfindrPassportConfig(dt.Config):  # NOQA
     _param_info_list = [
         # TODO: is dim_size necessary?
         ut.ParamInfo('dim_size', DIM_SIZE),
@@ -593,19 +593,19 @@ class whaleridgefindrPassportConfig(dt.Config):  # NOQA
 
 
 @register_preproc_annot(
-    tablename='whaleridgefindrPassport',
+    tablename='FinfindrPassport',
     parents=[ANNOTATION_TABLE],
     colnames=['image'],
     coltypes=[('extern', pil_image_load, pil_image_write)],
-    configclass=whaleridgefindrPassportConfig,
-    fname='whaleridgefindr',
+    configclass=FinfindrPassportConfig,
+    fname='finfindr',
     chunksize=128,
 )
-def whaleridgefindr_passport_depc(depc, aid_list, config):
+def finfindr_passport_depc(depc, aid_list, config):
     # The doctest for wbia_plugin_deepsense_identify_deepsense_ids also covers this func
     ibs = depc.controller
     for aid in aid_list:
-        image = ibs.whaleridgefindr_passport(aid, config=config)
+        image = ibs.finfindr_passport(aid, config=config)
         yield (image,)
 
 
@@ -615,7 +615,7 @@ def whaleridgefindr_passport_depc(depc, aid_list, config):
     __route_prefix_check__=False,
     __route_authenticate__=False,
 )
-def whaleridgefindr_passport_src(aid=None, ibs=None, **kwargs):
+def finfindr_passport_src(aid=None, ibs=None, **kwargs):
     from six.moves import cStringIO as StringIO
     from io import BytesIO
     from PIL import Image  # NOQA
@@ -629,7 +629,7 @@ def whaleridgefindr_passport_src(aid=None, ibs=None, **kwargs):
     aid = int(aid)
     aid_list = [aid]
     passport_paths = ibs.depc_annot.get(
-        'whaleridgefindrPassport', aid_list, 'image', read_extern=False, ensure=True
+        'FinfindrPassport', aid_list, 'image', read_extern=False, ensure=True
     )
     passport_path = passport_paths[0]
 
@@ -653,7 +653,7 @@ def whaleridgefindr_passport_src(aid=None, ibs=None, **kwargs):
 
 # TODO: move this into the wbia package. Literally copy-pasted from deepsense right now
 @register_ibs_method
-def whaleridgefindr_aid_list_from_annot_uuid_list(ibs, annot_uuid_list):
+def finfindr_aid_list_from_annot_uuid_list(ibs, annot_uuid_list):
     # do we need to do the following check?
     # ibs.web_check_uuids(qannot_uuid_list=annot_uuid_list)
     # Ensure annotations
@@ -662,15 +662,15 @@ def whaleridgefindr_aid_list_from_annot_uuid_list(ibs, annot_uuid_list):
     return aid_list
 
 
-# TODO: does this work and is this the desired config for whaleridgefindr
+# TODO: does this work and is this the desired config for finfindr
 @register_ibs_method
-def whaleridgefindr_annot_chip_fpath(ibs, annot_uuid, **kwargs):
-    aid = ibs.whaleridgefindr_aid_from_annot_uuid(annot_uuid)
-    return ibs.whaleridgefindr_annot_chip_fpath_from_aid(aid, **kwargs)
+def finfindr_annot_chip_fpath(ibs, annot_uuid, **kwargs):
+    aid = ibs.finfindr_aid_from_annot_uuid(annot_uuid)
+    return ibs.finfindr_annot_chip_fpath_from_aid(aid, **kwargs)
 
 
 @register_ibs_method
-def whaleridgefindr_annot_chip_fpath_from_aid(ibs, aid, **kwargs):
+def finfindr_annot_chip_fpath_from_aid(ibs, aid, **kwargs):
     config = {
         'ext': '.jpg',
     }
@@ -679,7 +679,7 @@ def whaleridgefindr_annot_chip_fpath_from_aid(ibs, aid, **kwargs):
 
 
 @register_ibs_method
-def whaleridgefindr_aid_from_annot_uuid(ibs, annot_uuid):
+def finfindr_aid_from_annot_uuid(ibs, annot_uuid):
     annot_uuid_list = [annot_uuid]
     ibs.web_check_uuids(qannot_uuid_list=annot_uuid_list)
     annot_uuid_list = ensure_uuid_list(annot_uuid_list)
@@ -690,8 +690,8 @@ def whaleridgefindr_aid_from_annot_uuid(ibs, annot_uuid):
 
 
 @register_ibs_method
-def whaleridgefindr_init_testdb(ibs):
-    image_path = abspath('/home/wildme/code/wbia-whaleridgefindr-module/example-images')
+def finfindr_init_testdb(ibs):
+    image_path = abspath('/home/wildme/code/wbia-finfindr-module/example-images')
     assert exists(image_path)
     gid_list = ibs.import_folder(image_path, ensure_loadable=False, ensure_exif=False)
     uri_list = ibs.get_image_uris_original(gid_list)
@@ -748,18 +748,18 @@ def get_match_results(depc, qaid_list, daid_list, score_list, config):
         yield match_result
 
 
-class whaleridgefindrConfig(dt.Config):  # NOQA
+class FinfindrConfig(dt.Config):  # NOQA
     """
     CommandLine:
-        python -m wbia_deepsense._plugin --test-whaleridgefindrConfig
+        python -m wbia_deepsense._plugin --test-FinfindrConfig
 
     Example:
         >>> # DISABLE_DOCTEST
-        >>> from wbia_whaleridgefindr._plugin import *  # NOQA
-        >>> config = whaleridgefindrConfig()
+        >>> from wbia_finfindr._plugin import *  # NOQA
+        >>> config = FinfindrConfig()
         >>> result = config.get_cfgstr()
         >>> print(result)
-        whaleridgefindr(dim_size=2000)
+        Finfindr(dim_size=2000)
     """
 
     def get_param_info_list(self):
@@ -768,16 +768,16 @@ class whaleridgefindrConfig(dt.Config):  # NOQA
         ]
 
 
-class whaleridgefindrRequest(dt.base.VsOneSimilarityRequest):
+class FinfindrRequest(dt.base.VsOneSimilarityRequest):
     _symmetric = False
-    _tablename = 'whaleridgefindr'
+    _tablename = 'Finfindr'
 
     @ut.accepts_scalar_input
     def get_fmatch_overlayed_chip(request, aid_list, config=None):
         depc = request.depc
         ibs = depc.controller
         passport_paths = ibs.depc_annot.get(
-            'whaleridgefindrPassport',
+            'FinfindrPassport',
             aid_list,
             'image',
             config=config,
@@ -801,10 +801,10 @@ class whaleridgefindrRequest(dt.base.VsOneSimilarityRequest):
         cm_list = list(get_match_results(depc, qaid_list, daid_list, score_list, config))
         table.delete_rows(rowids)
 
-        # Extra cleanup for whaleridgefindrDistance
+        # Extra cleanup for FinfindrDistance
         ibs = depc.controller
         for table_ in ibs.depc_annot.tables:
-            if table_.tablename == 'whaleridgefindrDistance':
+            if table_.tablename == 'FinfindrDistance':
                 rowids_ = table_.get_rowid(parent_rowids, config=request.config)
                 table_.delete_rows(rowids_)
 
@@ -812,7 +812,7 @@ class whaleridgefindrRequest(dt.base.VsOneSimilarityRequest):
 
     def execute(request, *args, **kwargs):
         # kwargs['use_cache'] = False
-        result_list = super(whaleridgefindrRequest, request).execute(*args, **kwargs)
+        result_list = super(FinfindrRequest, request).execute(*args, **kwargs)
         qaids = kwargs.pop('qaids', None)
         # TODO: is this filtering necessary?
         if qaids is not None:
@@ -821,29 +821,29 @@ class whaleridgefindrRequest(dt.base.VsOneSimilarityRequest):
 
 
 @register_preproc_annot(
-    tablename='whaleridgefindr',
+    tablename='Finfindr',
     parents=[ANNOTATION_TABLE, ANNOTATION_TABLE],
     colnames=['score'],
     coltypes=[float],
-    configclass=whaleridgefindrConfig,
-    requestclass=whaleridgefindrRequest,
-    fname='whaleridgefindr',
+    configclass=FinfindrConfig,
+    requestclass=FinfindrRequest,
+    fname='finfindr',
     rm_extern_on_delete=True,
     chunksize=None,
 )
-def wbia_plugin_whaleridgefindr(depc, qaid_list, daid_list, config):
+def wbia_plugin_finfindr(depc, qaid_list, daid_list, config):
     r"""
-    Matches qaid_list against daid_list using whaleridgefindr
+    Matches qaid_list against daid_list using Finfindr
 
     CommandLine:
-        python -m wbia_whaleridgefindr._plugin --exec-wbia_plugin_whaleridgefindr
-        python -m wbia_whaleridgefindr._plugin --exec-wbia_plugin_whaleridgefindr:0
+        python -m wbia_finfindr._plugin --exec-wbia_plugin_finfindr
+        python -m wbia_finfindr._plugin --exec-wbia_plugin_finfindr:0
 
     Example:
         >>> # DISABLE_DOCTEST
         >>> import utool as ut
-        >>> import wbia_whaleridgefindr
-        >>> from wbia_whaleridgefindr._plugin import whaleridgefindrRequest
+        >>> import wbia_finfindr
+        >>> from wbia_finfindr._plugin import FinfindrRequest
         >>> import wbia
         >>> from wbia.init import sysres
         >>> # The curvrank testdb also uses dolphin dorsals
@@ -852,7 +852,7 @@ def wbia_plugin_whaleridgefindr(depc, qaid_list, daid_list, config):
         >>> depc = ibs.depc_annot
         >>> daid_list = [2, 3, 4, 5]
         >>> qaid = [1]
-        >>> request = whaleridgefindrRequest.new(depc, qaid, daid_list)
+        >>> request = FinfindrRequest.new(depc, qaid, daid_list)
         >>> result = request.execute()
         >>> am = result[0]
         >>> unique_nids = am.unique_nids
@@ -870,15 +870,15 @@ def wbia_plugin_whaleridgefindr(depc, qaid_list, daid_list, config):
 
     ibs = depc.controller
     distances = ibs.depc_annot.get(
-        'whaleridgefindrDistance', (qaid_list, daid_list), 'distance', config=config
+        'FinfindrDistance', (qaid_list, daid_list), 'distance', config=config
     )
     for distance in distances:
         # I'm still confused about these trailing commas. Are we casting this to a unary tuple?
-        score = whaleridgefindr_distance_to_match_score(distance)
+        score = finfindr_distance_to_match_score(distance)
         yield (score,)
 
 
-def whaleridgefindr_distance_to_match_score(distance, max_distance_scalar=500.0):
+def finfindr_distance_to_match_score(distance, max_distance_scalar=500.0):
     if distance is None:
         score = 0.0
     else:
@@ -887,22 +887,22 @@ def whaleridgefindr_distance_to_match_score(distance, max_distance_scalar=500.0)
     return score
 
 
-def whaleridgefindr_double_check(ibs, qaid_list, daid_list):
+def finfindr_double_check(ibs, qaid_list, daid_list):
     qaids = list(set(qaid_list))
     daids = list(set(daid_list))
-    qaids_clean, daids_clean, response = ibs.wbia_plugin_whaleridgefindr_identify(
+    qaids_clean, daids_clean, response = ibs.wbia_plugin_finfindr_identify(
         qaids, daids, use_depc=False
     )
-    sorted_scores = ibs.whaleridgefindr_wbia_distance_list_from_whaleridgefindr_result(
+    sorted_scores = ibs.finfindr_wbia_distance_list_from_finfindr_result(
         qaids, daids, qaids_clean, daids_clean, response
     )
     sorted_scores_ = []
     for i in range(len(daid_list)):
         daids_ = [daid_list[i]]
-        qaids_clean_, daids_clean_, response_ = ibs.wbia_plugin_whaleridgefindr_identify(
+        qaids_clean_, daids_clean_, response_ = ibs.wbia_plugin_finfindr_identify(
             qaids, daids_, use_depc=False
         )
-        score = ibs.whaleridgefindr_wbia_distance_list_from_whaleridgefindr_result(
+        score = ibs.finfindr_wbia_distance_list_from_finfindr_result(
             qaids, daids_, qaids_clean_, daids_clean_, response_
         )[0]
         sorted_scores_.append(score)
@@ -910,22 +910,22 @@ def whaleridgefindr_double_check(ibs, qaid_list, daid_list):
 
 
 @register_ibs_method
-def whaleridgefindr_double_check_random_order(ibs, qaid_list, daid_list):
+def finfindr_double_check_random_order(ibs, qaid_list, daid_list):
     qaids = list(set(qaid_list))
     daids = list(set(daid_list))
-    qaids_clean, daids_clean, response = ibs.wbia_plugin_whaleridgefindr_identify(
+    qaids_clean, daids_clean, response = ibs.wbia_plugin_finfindr_identify(
         qaids, daids, use_depc=False
     )
-    sorted_scores = ibs.whaleridgefindr_wbia_distance_list_from_whaleridgefindr_result(
+    sorted_scores = ibs.finfindr_wbia_distance_list_from_finfindr_result(
         qaids, daids, qaids_clean, daids_clean, response
     )
     sorted_scores_ = []
     for i in range(len(daid_list)):
         daids_ = [daid_list[i]]
-        qaids_clean_, daids_clean_, response_ = ibs.wbia_plugin_whaleridgefindr_identify(
+        qaids_clean_, daids_clean_, response_ = ibs.wbia_plugin_finfindr_identify(
             qaids, daids_, use_depc=False
         )
-        score = ibs.whaleridgefindr_wbia_distance_list_from_whaleridgefindr_result(
+        score = ibs.finfindr_wbia_distance_list_from_finfindr_result(
             qaids, daids_, qaids_clean_, daids_clean_, response_
         )[0]
         sorted_scores_.append(score)
@@ -935,7 +935,7 @@ def whaleridgefindr_double_check_random_order(ibs, qaid_list, daid_list):
 if __name__ == '__main__':
     r"""
     CommandLine:
-        python -m wbia_whaleridgefindr._plugin --allexamples
+        python -m wbia_finfindr._plugin --allexamples
     """
     import multiprocessing
 
