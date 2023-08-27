@@ -169,7 +169,7 @@ def parse_requirements(fname='requirements.txt', with_version=False):
     return packages
 
 
-NAME = 'wbia-finfindr'
+NAME = 'wbia-whaleridgefindr'
 
 
 MB_PYTHON_TAG = native_mb_python_tag()  # NOQA
@@ -203,13 +203,13 @@ KWARGS = OrderedDict(
     # See https://github.com/pypa/setuptools_scm/ for more information
     setup_requires=['setuptools_scm'],
     use_scm_version={
-        'write_to': 'wbia_finfindr/_version.py',
+        'write_to': 'wbia-whaleridgefindr/_version.py',
         'write_to_template': '__version__ = "{version}"',
         'tag_regex': '^(?P<prefix>v)?(?P<version>[^\\+]+)(?P<suffix>.*)?$',
         'local_scheme': 'dirty-tag',
     },
     packages=find_packages(),
-    package_dir={'wbia_finfindr': 'wbia_finfindr'},
+    package_dir={'wbia-whaleridgefindr': 'wbia-whaleridgefindr'},
     include_package_data=False,
     # List of classifiers available at:
     # https://pypi.python.org/pypi?%3Aaction=list_classifiers
